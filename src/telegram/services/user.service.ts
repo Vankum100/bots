@@ -1,0 +1,31 @@
+import { Injectable } from '@nestjs/common';
+import { Redis } from 'ioredis';
+import { InjectRedis } from '@liaoliaots/nestjs-redis';
+
+export type User = {
+  userName?: string;
+  userId: number;
+  phone: string;
+};
+@Injectable()
+export class UserService {
+  constructor(
+    @InjectRedis('bot') private readonly redisClient: Redis,
+  ) {}
+
+  async findAll(): Promise<User[]> {
+    const keys = await this.redisClient.keys('user:*');
+    const users = await this.redisClient.mget(...keys);
+    return users.map((userString) => JSON.parse(userString));
+  }
+
+  async findOne(userId: number): Promise<User | null> {
+    const userString = await this.redisClient.get(`user:${userId}`);
+    return userString ? JSON.parse(userString) : null;
+  }
+
+  async create(user: User): Promise<User> {
+    await this.redisClient.set(`user:${user.userId}`, JSON.stringify(user));
+    return user;
+  }
+}

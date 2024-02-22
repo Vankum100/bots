@@ -1,0 +1,93 @@
+version: '3.9'
+
+x-image-env:
+  &default
+  build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=development
+      network: host
+  restart: unless-stopped
+  networks:
+      - webnet
+  env_file:
+    - .env
+  depends_on:
+    - redis-history
+    - mysql_db-history
+  links:
+    - redis-history
+    - mysql_db-history
+  volumes:  
+    - .:/usr/src/app
+    - /usr/src/app/node_modules
+    - ./tls/ca.crt:${REDIS_TLS_CA_CRT}
+
+services:
+
+  main:
+    container_name: monitor-history
+    <<: *default
+    ports:
+      - ${MICROSERVICE_HISTORY_PORT}:${MICROSERVICE_HISTORY_PORT}
+    command: npm run start:prod
+
+  sync:
+    <<: *default
+    command: npm run cli:sync
+
+  redis-history:
+    container_name: redis-history
+    image: redis:latest
+    restart: unless-stopped
+    command: >
+      redis-server
+      --tls-port ${REDIS_CACHE_PORT}
+      --port 0
+      --tls-cert-file ${REDIS_TLS_CRT}
+      --tls-key-file ${REDIS_TLS_KEY}
+      --tls-ca-cert-file ${REDIS_TLS_CA_CRT}
+      --tls-auth-clients no
+      --tls-ciphersuites TLS_CHACHA20_POLY1305_SHA256
+    ports:
+      - ${REDIS_CACHE_PORT}:${REDIS_CACHE_PORT}
+    networks:
+      - webnet
+    volumes:
+      - ./redis:/var/lib/redis
+      - ./tls/redis.crt:${REDIS_TLS_CRT}
+      - ./tls/redis.key:${REDIS_TLS_KEY}
+      - ./tls/ca.crt:${REDIS_TLS_CA_CRT}
+      - ./tls/ca.key:${REDIS_TLS_CA_KEY}
+    depends_on:
+      - mysql_db-history
+
+  mysql_db-history:
+    container_name: mysql_db-history
+    image: mysql:latest
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${SQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${SQL_DATABASE}
+      MYSQL_USER: ${SQL_USER}
+      MYSQL_PASSWORD: ${SQL_USER_PASSWORD}
+      MYSQL_TCP_PORT: ${SQL_PORT}
+    ports:
+      - ${SQL_PORT}:${SQL_PORT}
+    networks:
+      - webnet
+    volumes:
+      - ./dbdata:/var/lib/mysql/
+      - ./mysql_seeds/0000:/docker-entrypoint-initdb.d
+
+volumes:
+  dbdata:
+  redis:
+  redis-config:
+
+networks:
+  webnet:
+    name: microservice_network
+    external: true
