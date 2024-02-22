@@ -50,7 +50,10 @@ export class LoginScene {
       return 'У вас нет разрешения к боту.';
     }
     const userData = response.data;
-    if (userData.roleId !== 'root' && userData.roleId !== 'manager') {
+    if (
+      userData.roleId !== process.env.ROLE_ROOT_ID &&
+      userData.roleId !== process.env.ROLE_MANAGER_ID
+    ) {
       return 'У вас нет разрешения на использование бота.';
     }
 

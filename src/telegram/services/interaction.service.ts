@@ -79,7 +79,7 @@ export class InteractionService implements OnApplicationBootstrap {
         },
       );
     } catch (err) {
-      console.log('error ', err.code);
+      console.log('getAreas error ', err);
       return 'ошибка при получении всех площадок';
     }
     const areas = response.data;
