@@ -42,7 +42,7 @@ export class LoginScene {
         },
       );
     } catch (err) {
-      console.log('error ', err.code);
+      console.error('error ', err.code || err.response.data);
       return 'ошибка при авторизации';
     }
 

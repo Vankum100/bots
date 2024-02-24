@@ -1,7 +1,12 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
 
 interface AreaData {
   areaId: string;
@@ -11,28 +16,28 @@ interface AreaData {
 }
 
 @Injectable()
-export class InteractionService implements OnApplicationBootstrap {
+export class InteractionService
+  implements OnApplicationBootstrap, OnModuleDestroy
+{
   private readonly AREA_PREFIX = 'area:';
-  private axiosInstance: AxiosInstance;
-
-  constructor(@InjectRedis('bot') private readonly redisClient: Redis) {
-    this.axiosInstance = axios.create();
-  }
+  private isAlive = true;
+  private sentCount = 0;
+  private readonly logger = new Logger('Device Status Handler');
+  constructor(@InjectRedis('bot') private readonly redisClient: Redis) {}
 
   async onApplicationBootstrap() {
     await this.getAllAreaIds();
     setInterval(async () => {
       await this.getAllAreaIds();
     }, 60 * 60000);
-    setInterval(async () => {
-      await this.handleStatusChange();
-    }, 60000);
   }
-  private async handleStatusChange(): Promise<void> {
-    const batchSize = 15;
-    let remainingQueries = true;
+  onModuleDestroy() {
+    this.isAlive = false;
+  }
+  async handleStatusChange(): Promise<void> {
+    const batchSize = 100;
 
-    while (remainingQueries) {
+    while (this.isAlive) {
       const queries = await this.redisClient.lrange(
         `device.status.${process.env.MICROSERVICE_BOT_NAME}.${3000}`,
         0,
@@ -40,7 +45,10 @@ export class InteractionService implements OnApplicationBootstrap {
       );
 
       if (queries.length === 0) {
-        remainingQueries = false;
+        this.logger.warn(
+          `Delaying for 30 seconds because  all messages already sent `,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 30000));
       } else {
         for (const data of queries) {
           const { message, areaId } = JSON.parse(data);
@@ -49,11 +57,21 @@ export class InteractionService implements OnApplicationBootstrap {
           for (const chatId of chatIds) {
             try {
               const result = await this.sendTelegramMessage(chatId, message);
-              console.log(
+              this.logger.log(
                 `Message sent to chatId ${chatId}, Status: ${result?.status}`,
               );
             } catch (e) {
-              console.error('Sending to telegram error ', e);
+              this.logger.error('Sending to telegram error ', e);
+            }
+
+            this.sentCount++;
+
+            if (this.sentCount >= 30) {
+              this.logger.warn(
+                `Delaying for 5 seconds because  ${this.sentCount} messages already sent `,
+              );
+              await new Promise((resolve) => setTimeout(resolve, 5000));
+              this.sentCount = 0;
             }
           }
         }
@@ -79,7 +97,7 @@ export class InteractionService implements OnApplicationBootstrap {
         },
       );
     } catch (err) {
-      console.log('getAreas error ', err);
+      this.logger.log('getAreas error ', err);
       return 'ошибка при получении всех площадок';
     }
     const areas = response.data;
@@ -110,15 +128,15 @@ export class InteractionService implements OnApplicationBootstrap {
   }
 
   async sendTelegramMessage(chatId: number, message: string): Promise<any> {
-    console.log(`Sending message to chatId ${chatId}: ${message}`);
+    this.logger.log(`Sending message to chatId ${chatId}`);
     try {
       const finalUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-      return this.axiosInstance.post(finalUrl, {
+      return axios.post(finalUrl, {
         chat_id: chatId,
         text: message,
       });
     } catch (err) {
-      console.error('telegram error ', err);
+      this.logger.error('telegram error ', err);
       throw new Error(`Error sending telegram message: ${err.message}`);
     }
   }
