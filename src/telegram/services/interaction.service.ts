@@ -46,9 +46,9 @@ export class InteractionService
 
       if (queries.length === 0) {
         this.logger.warn(
-          `Delaying for 30 seconds because  all messages already sent `,
+          `Delaying for 60 seconds because  all messages already sent `,
         );
-        await new Promise((resolve) => setTimeout(resolve, 30000));
+        await new Promise((resolve) => setTimeout(resolve, 60000));
       } else {
         for (const data of queries) {
           const { message, areaId } = JSON.parse(data);
@@ -66,11 +66,11 @@ export class InteractionService
 
             this.sentCount++;
 
-            if (this.sentCount >= 30) {
+            if (this.sentCount >= 60) {
               this.logger.warn(
-                `Delaying for 5 seconds because  ${this.sentCount} messages already sent `,
+                `Delaying for 60 seconds because  ${this.sentCount} messages already sent `,
               );
-              await new Promise((resolve) => setTimeout(resolve, 5000));
+              await new Promise((resolve) => setTimeout(resolve, 60000));
               this.sentCount = 0;
             }
           }
