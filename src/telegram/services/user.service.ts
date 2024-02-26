@@ -6,12 +6,11 @@ export type User = {
   userName?: string;
   userId: number;
   phone: string;
+  notificationEnabled?: boolean;
 };
 @Injectable()
 export class UserService {
-  constructor(
-    @InjectRedis('bot') private readonly redisClient: Redis,
-  ) {}
+  constructor(@InjectRedis('bot') private readonly redisClient: Redis) {}
 
   async findAll(): Promise<User[]> {
     const keys = await this.redisClient.keys('user:*');
@@ -27,5 +26,23 @@ export class UserService {
   async create(user: User): Promise<User> {
     await this.redisClient.set(`user:${user.userId}`, JSON.stringify(user));
     return user;
+  }
+
+  async updateNotificationStatus(
+    userId: number,
+    notificationEnabled: boolean,
+  ): Promise<void> {
+    const user = await this.findOne(userId);
+    if (user) {
+      user.notificationEnabled = notificationEnabled;
+      await this.redisClient.set(`user:${userId}`, JSON.stringify(user));
+    }
+  }
+
+  async isNotificationEnabled(userId: number): Promise<boolean> {
+    const user = await this.findOne(userId);
+    return user && user.notificationEnabled !== undefined
+      ? user.notificationEnabled
+      : false;
   }
 }

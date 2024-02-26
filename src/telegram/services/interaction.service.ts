@@ -7,6 +7,7 @@ import {
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 import axios from 'axios';
+import { UserService } from './user.service';
 
 interface AreaData {
   areaId: string;
@@ -23,7 +24,10 @@ export class InteractionService
   private isAlive = true;
   private sentCount = 0;
   private readonly logger = new Logger('Device Status Handler');
-  constructor(@InjectRedis('bot') private readonly redisClient: Redis) {}
+  constructor(
+    @InjectRedis('bot') private readonly redisClient: Redis,
+    private readonly userService: UserService,
+  ) {}
 
   async onApplicationBootstrap() {
     await this.getAllAreaIds();
@@ -55,23 +59,29 @@ export class InteractionService
           const chatIds = await this.getChatIdsByAreaId(areaId);
 
           for (const chatId of chatIds) {
-            try {
-              const result = await this.sendTelegramMessage(chatId, message);
-              this.logger.log(
-                `Message sent to chatId ${chatId}, Status: ${result?.status}`,
-              );
-            } catch (e) {
-              this.logger.error('Sending to telegram error ', e);
-            }
+            if (await this.userService.isNotificationEnabled(chatId)) {
+              try {
+                const result = await this.sendTelegramMessage(chatId, message);
+                this.logger.log(
+                  `Message sent to chatId ${chatId}, Status: ${result?.status}`,
+                );
+              } catch (e) {
+                this.logger.error('Sending to telegram error ', e);
+              }
 
-            this.sentCount++;
+              this.sentCount++;
 
-            if (this.sentCount >= 60) {
+              if (this.sentCount >= 60) {
+                this.logger.warn(
+                  `Delaying for 60 seconds because  ${this.sentCount} messages already sent `,
+                );
+                await new Promise((resolve) => setTimeout(resolve, 60000));
+                this.sentCount = 0;
+              }
+            } else {
               this.logger.warn(
-                `Delaying for 60 seconds because  ${this.sentCount} messages already sent `,
+                ` Notifications currently disabled for userId ${chatId} `,
               );
-              await new Promise((resolve) => setTimeout(resolve, 60000));
-              this.sentCount = 0;
             }
           }
         }

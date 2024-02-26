@@ -1,4 +1,4 @@
-import { Ctx, On, Scene, SceneEnter } from 'nestjs-telegraf';
+import { Command, Ctx, On, Scene, SceneEnter } from 'nestjs-telegraf';
 import {
   INTERACTION_ADD_SCENE,
   INTERACTION_SELECT_SCENE,
@@ -9,12 +9,14 @@ import { UserService } from '../services/user.service';
 import { InteractionActionsEnum } from '../enums/interaction-actions.enum';
 import { InteractionEnum } from '../enums/interactionEnum';
 import { formattedAreas } from '../utils/areas';
+import { CommandHandler } from '../commands/command-handler';
 
 @Scene(INTERACTION_ADD_SCENE)
 export class InteractionAddScene {
   constructor(
     private readonly interactionService: InteractionService,
     private readonly userService: UserService,
+    private readonly commandHandler: CommandHandler,
   ) {}
 
   @SceneEnter()
@@ -30,6 +32,20 @@ export class InteractionAddScene {
         },
       },
     );
+  }
+  @Command('restart')
+  async startCommand(@Ctx() ctx: Context) {
+    await this.commandHandler.startCommand(ctx);
+  }
+
+  @Command('enable')
+  async enableCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.enableCommand(ctx, this.userService);
+  }
+
+  @Command('disable')
+  async disableCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.disableCommand(ctx, this.userService);
   }
 
   @On('text')

@@ -58,7 +58,12 @@ export class LoginScene {
     }
 
     if (!currentUser) {
-      await this.userService.create({ userName, phone, userId });
+      await this.userService.create({
+        userName,
+        phone,
+        userId,
+        notificationEnabled: true,
+      });
     }
     await ctx.telegram.sendMessage(ctx.chat.id, AUTH_COMPLETED);
     await ctx.scene.enter(INTERACTION_SELECT_SCENE);
