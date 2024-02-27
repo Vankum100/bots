@@ -10,6 +10,7 @@ import { InteractionActionsEnum } from '../enums/interaction-actions.enum';
 import { InteractionEnum } from '../enums/interactionEnum';
 import { formattedAreas } from '../utils/areas';
 import { CommandHandler } from '../commands/command-handler';
+import { BotCommand } from '../enums/commandEnum';
 
 @Scene(INTERACTION_ADD_SCENE)
 export class InteractionAddScene {
@@ -33,19 +34,30 @@ export class InteractionAddScene {
       },
     );
   }
-  @Command('restart')
+
+  @Command(BotCommand.Start)
   async startCommand(@Ctx() ctx: Context) {
     await this.commandHandler.startCommand(ctx);
   }
 
-  @Command('enable')
+  @Command(BotCommand.Restart)
+  async restartCommand(@Ctx() ctx: Context) {
+    await this.commandHandler.startCommand(ctx);
+  }
+
+  @Command(BotCommand.Enable)
   async enableCommand(@Ctx() ctx: Context) {
     return this.commandHandler.enableCommand(ctx, this.userService);
   }
 
-  @Command('disable')
+  @Command(BotCommand.Disable)
   async disableCommand(@Ctx() ctx: Context) {
     return this.commandHandler.disableCommand(ctx, this.userService);
+  }
+
+  @Command(BotCommand.Logout)
+  async logoutCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.logoutCommand(ctx, this.userService);
   }
 
   @On('text')
@@ -57,7 +69,7 @@ export class InteractionAddScene {
       let responseText = '';
       const { areaId, name, number } =
         await this.interactionService.getAreaByNumber(Number(message));
-      console.log('message ', message, 'name ', name, 'areaId', areaId);
+      console.log('areaNumber ', message, 'areaName ', name, 'areaId', areaId);
       const { userId } = await this.userService.findOne(ctx.from.id);
       // @ts-expect-error
       const interactionType = ctx.scene.state.interactionType;
@@ -91,10 +103,24 @@ export class InteractionAddScene {
     } else if (message === 'Назад') {
       await ctx.scene.enter(INTERACTION_SELECT_SCENE);
     } else {
-      await ctx.telegram.sendMessage(
-        ctx.from.id,
-        'Введите корректную номер площадки',
-      );
+      const command = message.trim().split(' ')[0];
+      switch (command) {
+        case BotCommand.Start:
+          return this.commandHandler.startCommand(ctx);
+        case BotCommand.Restart:
+          return this.commandHandler.startCommand(ctx);
+        case BotCommand.Enable:
+          return this.commandHandler.enableCommand(ctx, this.userService);
+        case BotCommand.Disable:
+          return this.commandHandler.disableCommand(ctx, this.userService);
+        case BotCommand.Logout:
+          return this.commandHandler.logoutCommand(ctx, this.userService);
+        default:
+          await ctx.telegram.sendMessage(
+            ctx.from.id,
+            'Введите корректную номер площадки',
+          );
+      }
     }
   }
 }
