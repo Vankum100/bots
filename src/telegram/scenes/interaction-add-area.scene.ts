@@ -1,19 +1,26 @@
 import { Command, Ctx, On, Scene, SceneEnter } from 'nestjs-telegraf';
 import {
-  INTERACTION_ADD_SCENE,
-  INTERACTION_SELECT_SCENE,
+  INTERACTION_ADD_AREA_SCENE,
+  INTERACTION_SELECT_AREA_SCENE,
+  INTERACTION_SELECT_CONTAINER_SCENE,
 } from '../constants/scenes';
 import { Context } from '../interfaces/context.interface';
 import { InteractionService } from '../services/interaction.service';
 import { UserService } from '../services/user.service';
 import { InteractionActionsEnum } from '../enums/interaction-actions.enum';
-import { InteractionEnum } from '../enums/interactionEnum';
+import { InteractionAreaEnum } from '../enums/interactionAreaEnum';
 import { formattedAreas } from '../utils/areas';
 import { CommandHandler } from '../commands/command-handler';
 import { BotCommand } from '../enums/commandEnum';
+import {
+  BACK,
+  SELECT_AREA_TEXT,
+  SELECT_CONTAINER_TEXT,
+} from '../constants/menu';
+import { interactionAddAreaKeyboard } from '../keyboards/interaction-add.keyboard';
 
-@Scene(INTERACTION_ADD_SCENE)
-export class InteractionAddScene {
+@Scene(INTERACTION_ADD_AREA_SCENE)
+export class InteractionAddAreaScene {
   constructor(
     private readonly interactionService: InteractionService,
     private readonly userService: UserService,
@@ -22,17 +29,22 @@ export class InteractionAddScene {
 
   @SceneEnter()
   async sceneEnter(@Ctx() ctx: Context) {
-    const names = await this.interactionService.getAreas();
-    await ctx.telegram.sendMessage(
-      ctx.from.id,
-      `все плошадки :\n${formattedAreas(names)}\n Введите номер площадки`,
-      {
-        reply_markup: {
-          resize_keyboard: true,
-          keyboard: [[{ text: 'Назад' }]],
+    const state_ = ctx.scene.session.state;
+    console.log('ctx scene-session- ADD ', state_);
+    // @ts-ignore
+    const text = ctx.message.text;
+    if (Object.values(InteractionAreaEnum).includes(text)) {
+      return this.addInteraction(ctx);
+    } else {
+      const names = await this.interactionService.getAreas();
+      await ctx.telegram.sendMessage(
+        ctx.from.id,
+        `все плошадки :\n${formattedAreas(names)}\n Введите номер площадки`,
+        {
+          reply_markup: interactionAddAreaKeyboard,
         },
-      },
-    );
+      );
+    }
   }
 
   @Command(BotCommand.Start)
@@ -73,35 +85,48 @@ export class InteractionAddScene {
       const { userId } = await this.userService.findOne(ctx.from.id);
       // @ts-expect-error
       const interactionType = ctx.scene.state.interactionType;
-      if (interactionType === InteractionEnum.INTERACTION_SUBSCRIBE) {
-        await this.interactionService.subscribeUser(userId, {
+      console.log('interactionType ', interactionType);
+      if (
+        interactionType === SELECT_CONTAINER_TEXT ||
+        interactionType === SELECT_AREA_TEXT
+      ) {
+        return ctx.scene.enter(INTERACTION_SELECT_CONTAINER_SCENE, {
+          interactionType,
           areaId,
-          name,
           number,
+          name,
         });
-        responseText = `Успешно подписал на плошадку ${name}`;
-      } else if (interactionType === InteractionEnum.INTERACTION_UNSUBSCRIBE) {
-        await this.interactionService.unsubscribeUser(userId, areaId);
-        responseText = `Успешно отписал от плошадки ${name}`;
-      }
-      await ctx.telegram.sendMessage(ctx.from.id, responseText, {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: 'Отменить действие',
-                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.REVERT_INTERACTION}`,
-              },
-              {
-                text: 'Узнать свои подписки',
-                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.SHOW_SUBSCRIBED}`,
-              },
+      } else {
+        if (
+          interactionType === InteractionAreaEnum.INTERACTION_AREA_SUBSCRIBE
+        ) {
+          await this.interactionService.subscribeUserToArea(userId, areaId);
+          responseText = `Успешно подписал на плошадку ${name}`;
+        } else if (
+          interactionType === InteractionAreaEnum.INTERACTION_AREA_UNSUBSCRIBE
+        ) {
+          await this.interactionService.unsubscribeUserFromArea(userId, areaId);
+          responseText = `Успешно отписал от плошадки ${name}`;
+        }
+        await ctx.telegram.sendMessage(ctx.from.id, responseText, {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: 'Отменить действие',
+                  callback_data: `${interactionType}_${message}_${InteractionActionsEnum.REVERT_INTERACTION}`,
+                },
+                {
+                  text: 'Узнать свои подписки',
+                  callback_data: `${interactionType}_${message}_${InteractionActionsEnum.SHOW_SUBSCRIBED_AREAS}`,
+                },
+              ],
             ],
-          ],
-        },
-      });
-    } else if (message === 'Назад') {
-      await ctx.scene.enter(INTERACTION_SELECT_SCENE);
+          },
+        });
+      }
+    } else if (message === BACK) {
+      await ctx.scene.enter(INTERACTION_SELECT_AREA_SCENE);
     } else {
       const command = message.trim().split(' ')[0];
       switch (command) {

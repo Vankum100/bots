@@ -3,15 +3,15 @@ import { Context } from './interfaces/context.interface';
 import { UserService } from './services/user.service';
 import { CommandHandler } from './commands/command-handler';
 import { LOGIN_SCENE_ON_MSG } from './constants/messages';
-import { INTERACTION_SELECT_SCENE } from './constants/scenes';
+import { INTERACTION_SELECT_AREA_SCENE } from './constants/scenes';
 import { BotCommand } from './enums/commandEnum';
 import { LoginScene } from './scenes/login.scene';
-import { InteractionSelectScene } from './scenes/interaction-select.scene';
+import { InteractionSelectAreaScene } from './scenes/interaction-select-area.scene';
 
 @Update()
 export class TelegramUpdate {
   constructor(
-    private interactionSelectionService: InteractionSelectScene,
+    private interactionSelectionService: InteractionSelectAreaScene,
     private readonly userService: UserService,
     private readonly commandHandler: CommandHandler,
     private readonly loginService: LoginScene,
@@ -59,7 +59,7 @@ export class TelegramUpdate {
     if (!isLoggedIn) {
       await ctx.telegram.sendMessage(ctx.chat.id, LOGIN_SCENE_ON_MSG);
     } else {
-      await ctx.scene.enter(INTERACTION_SELECT_SCENE);
+      await ctx.scene.enter(INTERACTION_SELECT_AREA_SCENE);
     }
   }
 

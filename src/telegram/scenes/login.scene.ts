@@ -1,5 +1,8 @@
 import { Command, Ctx, On, Scene, SceneEnter } from 'nestjs-telegraf';
-import { LOGIN_SCENE, INTERACTION_SELECT_SCENE } from '../constants/scenes';
+import {
+  LOGIN_SCENE,
+  INTERACTION_SELECT_AREA_SCENE,
+} from '../constants/scenes';
 import { Context } from '../interfaces/context.interface';
 import { helloKeyboard } from '../keyboards/hello.keyboard';
 import {
@@ -118,6 +121,6 @@ export class LoginScene {
 
     await this.userService.updateAuthStatus(userId, true);
     await ctx.telegram.sendMessage(ctx.chat.id, AUTH_COMPLETED);
-    await ctx.scene.enter(INTERACTION_SELECT_SCENE);
+    await ctx.scene.enter(INTERACTION_SELECT_AREA_SCENE);
   }
 }
