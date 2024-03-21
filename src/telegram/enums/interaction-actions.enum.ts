@@ -1,4 +1,5 @@
 export enum InteractionActionsEnum {
   REVERT_INTERACTION = 'REVERT',
   SHOW_SUBSCRIBED_AREAS = 'SHOW_SA',
+  SHOW_SUBSCRIBED_CONTAINERS = 'SHOW_SC',
 }

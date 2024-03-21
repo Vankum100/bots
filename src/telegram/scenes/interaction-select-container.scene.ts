@@ -1,16 +1,21 @@
 import { Command, Ctx, On, Scene, SceneEnter } from 'nestjs-telegraf';
 import {
   INTERACTION_ADD_AREA_SCENE,
+  INTERACTION_SELECT_AREA_SCENE,
   INTERACTION_SELECT_CONTAINER_SCENE,
 } from '../constants/scenes';
 import { Context } from '../interfaces/context.interface';
-import { interactionSelectContainerKeyboard } from '../keyboards/interaction-select-container.keyboard';
+import {
+  interactionFullySubscribedKeyboard,
+  interactionSelectContainerKeyboard,
+} from '../keyboards/interaction-select-container.keyboard';
 import { InteractionContainerEnum } from '../enums/interactionContainerEnum';
-import { formattedContainers } from '../utils/areas';
+import { formattedContainers, splitArrayIntoChunks } from '../utils/areas';
 import { UserService } from '../services/user.service';
 import { CommandHandler } from '../commands/command-handler';
 import { BotCommand } from '../enums/commandEnum';
 import { InteractionService } from '../services/interaction.service';
+import { BACK, SELECT_AREA_TEXT } from '../constants/menu';
 
 @Scene(INTERACTION_SELECT_CONTAINER_SCENE)
 export class InteractionSelectContainerScene {
@@ -23,25 +28,38 @@ export class InteractionSelectContainerScene {
   @SceneEnter()
   async sceneEnter(@Ctx() ctx: Context) {
     const state_ = ctx.scene.session.state;
-    console.log('ctx scene-session- CONTAINER ', state_);
     // @ts-ignore
-    const text = ctx.message.text;
+    const text = state_.interactionType;
     if (Object.values(InteractionContainerEnum).includes(text)) {
       return this.onTextHandler(ctx, text);
     } else {
       // @ts-ignore
       const areaId = ctx.scene.session.state.areaId;
       // @ts-ignore
-      const name = ctx.scene.session.state.name;
-      const names = await this.interactionService.getRangeipsByAreaId(areaId);
-      console.log('names ', names);
-      await ctx.telegram.sendMessage(
+      const area = ctx.scene.session.state.name;
+      const containers_ = await this.interactionService.getUnsubscribedRangeips(
         ctx.from.id,
-        `все контейнеры для площадкой ${name}:\n\n${formattedContainers(names)}\n\n Выбери вид операции:`,
-        {
-          reply_markup: interactionSelectContainerKeyboard,
-        },
+        areaId,
       );
+
+      const uniqueRangeipNames = new Map();
+      containers_.forEach((container) => {
+        if (!uniqueRangeipNames.has(container.rangeipName)) {
+          uniqueRangeipNames.set(container.rangeipName, container);
+        }
+      });
+
+      const responseText =
+        containers_.length === 0
+          ? `Вы уже подписались на все контейнеры площадкой ${area}, выберете другую площадку `
+          : `Контейнеры для площадкой ${area}:\n\n${formattedContainers(Array.from(uniqueRangeipNames.values()))}\n\n Выберете вид операции:`;
+
+      await ctx.telegram.sendMessage(ctx.from.id, responseText, {
+        reply_markup:
+          containers_.length === 0
+            ? interactionFullySubscribedKeyboard
+            : interactionSelectContainerKeyboard,
+      });
     }
   }
 
@@ -97,9 +115,95 @@ export class InteractionSelectContainerScene {
       text === InteractionContainerEnum.INTERACTION_CONTAINER_SUBSCRIBE ||
       text === InteractionContainerEnum.INTERACTION_CONTAINER_UNSUBSCRIBE
     ) {
+      // @ts-ignore
+      const areaId = ctx.scene.session.state.areaId;
+
+      // @ts-ignore
+      const area = ctx.scene.session.state.name;
+
+      if (text === InteractionContainerEnum.INTERACTION_CONTAINER_UNSUBSCRIBE) {
+        const subscribedContainers_ =
+          await this.interactionService.getSubscribedRangeips(
+            ctx.from.id,
+            areaId,
+          );
+        const uniqueRangeipNames = new Map();
+        subscribedContainers_.forEach((container) => {
+          if (!uniqueRangeipNames.has(container.rangeipName)) {
+            uniqueRangeipNames.set(container.rangeipName, container);
+          }
+        });
+        const subscribedContainers = Array.from(uniqueRangeipNames.values());
+
+        const inline_keyboard = subscribedContainers
+          .sort((a, b) => a.rangeipNumber - b.rangeipNumber)
+          .map((container, index) => ({
+            text: `${index + 1}`,
+            callback_data: `${text}_${container.rangeipNumber}`,
+          }));
+
+        const inline_buttons = splitArrayIntoChunks(inline_keyboard, 3);
+        await ctx.telegram.sendMessage(
+          ctx.from.id,
+          `Контейнеры для площадкой ${area} :\n${formattedContainers(subscribedContainers)}\n`,
+        );
+
+        await ctx.telegram.sendMessage(
+          ctx.from.id,
+          'Выберите номер контейнера',
+          {
+            reply_markup: {
+              inline_keyboard: inline_buttons,
+            },
+          },
+        );
+      } else if (
+        text === InteractionContainerEnum.INTERACTION_CONTAINER_SUBSCRIBE
+      ) {
+        const unsubscribedContainers_ =
+          await this.interactionService.getUnsubscribedRangeips(
+            ctx.from.id,
+            areaId,
+          );
+        const uniqueRangeipNames = new Map();
+        unsubscribedContainers_.forEach((container) => {
+          if (!uniqueRangeipNames.has(container.rangeipName)) {
+            uniqueRangeipNames.set(container.rangeipName, container);
+          }
+        });
+        const unsubscribedContainers = Array.from(uniqueRangeipNames.values());
+
+        const inline_keyboard = unsubscribedContainers
+          .sort((a, b) => a.rangeipNumber - b.rangeipNumber)
+          .map((container, index) => ({
+            text: `${index + 1}`,
+            callback_data: `${text}_${container.rangeipNumber}`,
+          }));
+
+        const inline_buttons = splitArrayIntoChunks(inline_keyboard, 3);
+        await ctx.telegram.sendMessage(
+          ctx.from.id,
+          `Контейнеры для площадкой ${area} :\n${formattedContainers(unsubscribedContainers)}\n`,
+        );
+
+        await ctx.telegram.sendMessage(
+          ctx.from.id,
+          'Выберите номер контейнера',
+          {
+            reply_markup: {
+              inline_keyboard: inline_buttons,
+            },
+          },
+        );
+      }
+    } else if (
+      text === InteractionContainerEnum.INTERACTION_SELECT_DIFFERENT_AREA
+    ) {
       await ctx.scene.enter(INTERACTION_ADD_AREA_SCENE, {
-        interactionType: text,
+        interactionType: SELECT_AREA_TEXT,
       });
+    } else if (text === BACK) {
+      await ctx.scene.enter(INTERACTION_SELECT_AREA_SCENE);
     } else if (
       text === InteractionContainerEnum.INTERACTION_SHOW_AREA_CONTAINERS
     ) {
@@ -107,15 +211,33 @@ export class InteractionSelectContainerScene {
       const areaId = ctx.scene.state.areaId;
       // @ts-expect-error
       const name = ctx.scene.state.name;
-      const names = await this.interactionService.getRangeipsByAreaId(areaId);
-      return `все контейнеры для площадкой ${name}:\n${formattedContainers(names)}`;
+      const containers_ =
+        await this.interactionService.getRangeipsByAreaId(areaId);
+      const uniqueRangeipNames = new Map();
+      containers_.forEach((container) => {
+        if (!uniqueRangeipNames.has(container.rangeipName)) {
+          uniqueRangeipNames.set(container.rangeipName, container);
+        }
+      });
+      return `все контейнеры для площадкой ${name}:\n${formattedContainers(Array.from(uniqueRangeipNames.values()))}`;
     } else if (
       text === InteractionContainerEnum.INTERACTION_SHOW_SUBSCRIBED_CONTAINERS
     ) {
       const { userId } = await this.userService.findOne(ctx.from.id);
-      const names =
+      const containers_ =
         await this.interactionService.getRangeipNamesByChatId(userId);
-      console.log('names ', names);
+      const uniqueRangeipNames = new Map();
+      containers_.forEach((container) => {
+        if (
+          !uniqueRangeipNames.has(
+            `${container.rangeipName}_${container.areaId}`,
+          )
+        ) {
+          container.rangeipName = `${container.areaName} ${container.rangeipName}`;
+          uniqueRangeipNames.set(container.rangeipName, container);
+        }
+      });
+      const names = Array.from(uniqueRangeipNames.values());
       return names.length === 0
         ? 'Вы не подписали еще на контейнеры'
         : `Вы подписаны на следующие контейнеры:\n${formattedContainers(names)}`;

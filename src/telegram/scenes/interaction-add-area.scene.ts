@@ -8,8 +8,11 @@ import { Context } from '../interfaces/context.interface';
 import { InteractionService } from '../services/interaction.service';
 import { UserService } from '../services/user.service';
 import { InteractionActionsEnum } from '../enums/interaction-actions.enum';
-import { InteractionAreaEnum } from '../enums/interactionAreaEnum';
-import { formattedAreas } from '../utils/areas';
+import {
+  AllowedActionsEnum,
+  InteractionAreaEnum,
+} from '../enums/interactionAreaEnum';
+import { formattedAreas, splitArrayIntoChunks } from '../utils/areas';
 import { CommandHandler } from '../commands/command-handler';
 import { BotCommand } from '../enums/commandEnum';
 import {
@@ -17,7 +20,6 @@ import {
   SELECT_AREA_TEXT,
   SELECT_CONTAINER_TEXT,
 } from '../constants/menu';
-import { interactionAddAreaKeyboard } from '../keyboards/interaction-add.keyboard';
 
 @Scene(INTERACTION_ADD_AREA_SCENE)
 export class InteractionAddAreaScene {
@@ -30,20 +32,48 @@ export class InteractionAddAreaScene {
   @SceneEnter()
   async sceneEnter(@Ctx() ctx: Context) {
     const state_ = ctx.scene.session.state;
-    console.log('ctx scene-session- ADD ', state_);
+
     // @ts-ignore
-    const text = ctx.message.text;
-    if (Object.values(InteractionAreaEnum).includes(text)) {
-      return this.addInteraction(ctx);
+    const interactionType = state_.interactionType;
+    let areas = await this.interactionService.getAreas();
+    let areasText = 'нет площадок';
+    if (interactionType === InteractionAreaEnum.INTERACTION_AREA_SUBSCRIBE) {
+      areas = await this.interactionService.getUnsubscribedAreasByChatId(
+        ctx.from.id,
+      );
+      if (areas.length === 0) {
+        areasText = 'вы уже подписаны на все площадки попробуйте Отписаться';
+      }
+    }
+
+    if (interactionType === InteractionAreaEnum.INTERACTION_AREA_UNSUBSCRIBE) {
+      areas = await this.interactionService.getSubscribedAreasByChatId(
+        ctx.from.id,
+      );
+      if (areas.length === 0) {
+        areasText = 'вы еще не подписаны на площадки попробуйте Подписаться';
+      }
+    }
+
+    const inline_keyboard = areas
+      .sort((a, b) => a.number - b.number)
+      .map((area) => ({
+        text: `${area.number}`,
+        callback_data: `${interactionType}_${area.number}`,
+      }));
+    const inline_buttons = splitArrayIntoChunks(inline_keyboard, 3);
+    if (areas.length === 0) {
+      await ctx.telegram.sendMessage(ctx.from.id, areasText);
     } else {
-      const names = await this.interactionService.getAreas();
       await ctx.telegram.sendMessage(
         ctx.from.id,
-        `все плошадки :\n${formattedAreas(names)}\n Введите номер площадки`,
-        {
-          reply_markup: interactionAddAreaKeyboard,
-        },
+        `плошадки :\n${formattedAreas(areas)}\n`,
       );
+      await ctx.telegram.sendMessage(ctx.from.id, 'Выберите номер площадки', {
+        reply_markup: {
+          inline_keyboard: inline_buttons,
+        },
+      });
     }
   }
 
@@ -81,11 +111,10 @@ export class InteractionAddAreaScene {
       let responseText = '';
       const { areaId, name, number } =
         await this.interactionService.getAreaByNumber(Number(message));
-      console.log('areaNumber ', message, 'areaName ', name, 'areaId', areaId);
       const { userId } = await this.userService.findOne(ctx.from.id);
       // @ts-expect-error
       const interactionType = ctx.scene.state.interactionType;
-      console.log('interactionType ', interactionType);
+
       if (
         interactionType === SELECT_CONTAINER_TEXT ||
         interactionType === SELECT_AREA_TEXT
@@ -141,10 +170,16 @@ export class InteractionAddAreaScene {
         case BotCommand.Logout:
           return this.commandHandler.logoutCommand(ctx, this.userService);
         default:
-          await ctx.telegram.sendMessage(
-            ctx.from.id,
-            'Введите корректную номер площадки',
-          );
+          if (!Object.values(AllowedActionsEnum).includes(message)) {
+            await ctx.telegram.sendMessage(
+              ctx.from.id,
+              'Выберите вид операции из меню',
+            );
+          } else {
+            await ctx.scene.enter(INTERACTION_ADD_AREA_SCENE, {
+              interactionType: message,
+            });
+          }
       }
     }
   }

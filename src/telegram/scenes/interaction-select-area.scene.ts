@@ -2,6 +2,7 @@ import { Command, Ctx, On, Scene, SceneEnter } from 'nestjs-telegraf';
 import {
   INTERACTION_ADD_AREA_SCENE,
   INTERACTION_SELECT_AREA_SCENE,
+  INTERACTION_SELECT_CONTAINER_SCENE,
 } from '../constants/scenes';
 import { Context } from '../interfaces/context.interface';
 import { interactionSelectAreaKeyboard } from '../keyboards/interaction-select-area.keyboard';
@@ -30,9 +31,13 @@ export class InteractionSelectAreaScene {
     if (Object.values(InteractionAreaEnum).includes(text)) {
       return this.onTextHandler(ctx, text);
     } else {
-      await ctx.telegram.sendMessage(ctx.from.id, 'Выбери вид операции', {
-        reply_markup: interactionSelectAreaKeyboard,
-      });
+      await ctx.telegram.sendMessage(
+        ctx.from.id,
+        'Выберите вид операции из меню',
+        {
+          reply_markup: interactionSelectAreaKeyboard,
+        },
+      );
     }
   }
 
@@ -111,10 +116,10 @@ export class InteractionSelectAreaScene {
   async onCallbackQueryHandler(@Ctx() ctx: Context) {
     // @ts-expect-error
     const callbackData = ctx.callbackQuery?.data as string;
+    const [interactionType, message] = callbackData.split('_');
     if (
       callbackData.indexOf(InteractionActionsEnum.REVERT_INTERACTION) !== -1
     ) {
-      const [interactionType, message] = callbackData.split('_');
       if (
         interactionType ===
           InteractionContainerEnum.INTERACTION_CONTAINER_SUBSCRIBE ||
@@ -124,6 +129,8 @@ export class InteractionSelectAreaScene {
         const { rangeipId: containerId, rangeipName: name } =
           await this.interactionService.getRangeipDataByNumber(Number(message));
         const { userId } = await this.userService.findOne(ctx.from.id);
+        // @ts-ignore
+        const area = ctx.scene.session.state.name;
 
         if (
           interactionType ===
@@ -133,7 +140,7 @@ export class InteractionSelectAreaScene {
             userId,
             containerId,
           );
-          return `Успешно отписал от контейнера ${name}`;
+          return `Успешно отписал от контейнера: ${name}  площадка: ${area}`;
         } else if (
           interactionType ===
           InteractionContainerEnum.INTERACTION_CONTAINER_UNSUBSCRIBE
@@ -142,7 +149,7 @@ export class InteractionSelectAreaScene {
             userId,
             containerId,
           );
-          return `Успешно подписал на контейнер ${name}`;
+          return `Успешно подписал на контейнер ${name}  площадка: ${area}`;
         } else {
           return 'уже завершил этот действие ранее';
         }
@@ -179,15 +186,154 @@ export class InteractionSelectAreaScene {
     } else if (
       callbackData.indexOf(
         InteractionContainerEnum.INTERACTION_SHOW_SUBSCRIBED_CONTAINERS,
+      ) !== -1 ||
+      callbackData.indexOf(
+        InteractionActionsEnum.SHOW_SUBSCRIBED_CONTAINERS,
       ) !== -1
     ) {
       const { userId } = await this.userService.findOne(ctx.from.id);
-      const names =
+      const containers_ =
         await this.interactionService.getRangeipNamesByChatId(userId);
+      const uniqueRangeipNames = new Map();
+      containers_.forEach((container) => {
+        if (
+          !uniqueRangeipNames.has(
+            `${container.rangeipName}_${container.areaId}`,
+          )
+        ) {
+          container.rangeipName = `${container.areaName} ${container.rangeipName}`;
+          uniqueRangeipNames.set(container.rangeipName, container);
+        }
+      });
+      const names = Array.from(uniqueRangeipNames.values());
 
       return names.length === 0
         ? 'Вы не подписали еще на контейнеры'
         : `Вы подписаны на следующие контейнеры:\n${formattedContainers(names)}`;
+    } else if (
+      interactionType === InteractionAreaEnum.INTERACTION_AREA_UNSUBSCRIBE
+    ) {
+      const { areaId, name } = await this.interactionService.getAreaByNumber(
+        Number(message),
+      );
+      const { userId } = await this.userService.findOne(ctx.from.id);
+      await this.interactionService.unsubscribeUserFromArea(userId, areaId);
+      const responseText = `Успешно отписал от плошадки ${name}`;
+      await ctx.telegram.sendMessage(ctx.from.id, responseText, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: 'Отменить действие',
+                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.REVERT_INTERACTION}`,
+              },
+              {
+                text: 'Узнать свои плошадки',
+                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.SHOW_SUBSCRIBED_AREAS}`,
+              },
+            ],
+          ],
+        },
+      });
+    } else if (
+      interactionType === InteractionAreaEnum.INTERACTION_AREA_SUBSCRIBE
+    ) {
+      const { areaId, name } = await this.interactionService.getAreaByNumber(
+        Number(message),
+      );
+      const { userId } = await this.userService.findOne(ctx.from.id);
+
+      await this.interactionService.subscribeUserToArea(userId, areaId);
+      const responseText = `Успешно подписал на плошадку ${name}`;
+      await ctx.telegram.sendMessage(ctx.from.id, responseText, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: 'Отменить действие',
+                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.REVERT_INTERACTION}`,
+              },
+              {
+                text: 'Узнать свои плошадки',
+                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.SHOW_SUBSCRIBED_AREAS}`,
+              },
+            ],
+          ],
+        },
+      });
+    } else if (
+      interactionType === SELECT_CONTAINER_TEXT ||
+      interactionType === SELECT_AREA_TEXT
+    ) {
+      const { areaId, name, number } =
+        await this.interactionService.getAreaByNumber(Number(message));
+      return ctx.scene.enter(INTERACTION_SELECT_CONTAINER_SCENE, {
+        interactionType,
+        areaId,
+        number,
+        name,
+      });
+    } else if (
+      interactionType ===
+      InteractionContainerEnum.INTERACTION_CONTAINER_UNSUBSCRIBE
+    ) {
+      const { rangeipId: containerId, rangeipName: name } =
+        await this.interactionService.getRangeipDataByNumber(Number(message));
+      const { userId } = await this.userService.findOne(ctx.from.id);
+      await this.interactionService.unsubscribeUserFromContainer(
+        userId,
+        containerId,
+      );
+      // @ts-ignore
+      const area = ctx.scene.session.state.name;
+      const responseText = `Успешно отписал от контейнера: ${name}  площадка: ${area} `;
+      await ctx.telegram.sendMessage(ctx.from.id, responseText, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: 'Отменить действие',
+                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.REVERT_INTERACTION}`,
+              },
+              {
+                text: 'Узнать свои контейнеры',
+                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.SHOW_SUBSCRIBED_CONTAINERS}`,
+              },
+            ],
+          ],
+        },
+      });
+    } else if (
+      interactionType ===
+      InteractionContainerEnum.INTERACTION_CONTAINER_SUBSCRIBE
+    ) {
+      const { rangeipId: containerId, rangeipName: name } =
+        await this.interactionService.getRangeipDataByNumber(Number(message));
+      const { userId } = await this.userService.findOne(ctx.from.id);
+      await this.interactionService.subscribeUserToContainer(
+        userId,
+        containerId,
+      );
+      // @ts-ignore
+      const area = ctx.scene.session.state.name;
+
+      const responseText = `Успешно подписал на контейнер: ${name}  площадка: ${area}`;
+      await ctx.telegram.sendMessage(ctx.from.id, responseText, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: 'Отменить действие',
+                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.REVERT_INTERACTION}`,
+              },
+              {
+                text: 'Узнать свои контейнеры',
+                callback_data: `${interactionType}_${message}_${InteractionActionsEnum.SHOW_SUBSCRIBED_CONTAINERS}`,
+              },
+            ],
+          ],
+        },
+      });
     }
   }
 }

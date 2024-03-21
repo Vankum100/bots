@@ -8,4 +8,5 @@ export const UNSUBSCRIBE_CONTAINER_TEXT = 'Отписаться от конте�
 export const GET_MY_CONTAINERS_TEXT = 'Узнать мои контейнеры';
 export const BACK = 'Назад';
 export const SELECT_CONTAINER_TEXT = 'Выбрать контейнер';
-export const SELECT_AREA_TEXT = 'Выбрать плошадку';
+export const SELECT_AREA_TEXT = 'Выбрать площадку';
+export const SELECT_DIFFERENT_AREA_TEXT = 'Выбрать другую площадку';

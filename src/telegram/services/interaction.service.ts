@@ -66,7 +66,11 @@ export class InteractionService {
         areaNumber = areaKeys === null ? areaNumber : areaKeys.length + 1;
         await this.redisClient.set(
           areaKey,
-          JSON.stringify({ areaId, name: areaName, number: areaNumber }),
+          JSON.stringify({
+            areaId,
+            name: areaName,
+            number: areaNumber,
+          }),
         );
       }
       if (!rangeipData) {
@@ -113,14 +117,26 @@ export class InteractionService {
     chatId: number,
     rangeipId: string,
   ): Promise<string> {
-    const key = `${this.RANGEIP_PREFIX}${rangeipId}`;
     const currentRangeipData = await this.getRangeipData(rangeipId);
-
-    if (!currentRangeipData.chatIds.includes(chatId)) {
-      currentRangeipData.chatIds.push(chatId);
-      await this.redisClient.set(key, JSON.stringify(currentRangeipData));
+    if (!currentRangeipData) {
+      return 'Rangeip data not found.';
     }
+    const rangeipsInArea = await this.getRangeipsByAreaId(
+      currentRangeipData.areaId,
+    );
+    const relevantRangeips = rangeipsInArea.filter(
+      (rangeip) => rangeip.rangeipName === currentRangeipData.rangeipName,
+    );
 
+    for (const rangeip of relevantRangeips) {
+      if (!rangeip.chatIds.includes(chatId)) {
+        rangeip.chatIds.push(chatId);
+        await this.redisClient.set(
+          `${this.RANGEIP_PREFIX}${rangeip.rangeipId}`,
+          JSON.stringify(rangeip),
+        );
+      }
+    }
     return 'OK';
   }
 
@@ -128,16 +144,23 @@ export class InteractionService {
     chatId: number,
     rangeipId: string,
   ): Promise<string> {
-    const key = `${this.RANGEIP_PREFIX}${rangeipId}`;
     const currentRangeipData = await this.getRangeipData(rangeipId);
-
-    if (currentRangeipData) {
-      currentRangeipData.chatIds = currentRangeipData.chatIds.filter(
-        (id) => id !== chatId,
-      );
-      await this.redisClient.set(key, JSON.stringify(currentRangeipData));
+    if (!currentRangeipData) {
+      return 'Rangeip data not found.';
     }
-
+    const rangeipsInArea = await this.getRangeipsByAreaId(
+      currentRangeipData.areaId,
+    );
+    const relevantRangeips = rangeipsInArea.filter(
+      (rangeip) => rangeip.rangeipName === currentRangeipData.rangeipName,
+    );
+    for (const rangeip of relevantRangeips) {
+      rangeip.chatIds = rangeip.chatIds.filter((id) => id !== chatId);
+      await this.redisClient.set(
+        `${this.RANGEIP_PREFIX}${rangeip.rangeipId}`,
+        JSON.stringify(rangeip),
+      );
+    }
     return 'OK';
   }
 
@@ -149,6 +172,60 @@ export class InteractionService {
     return currentRangeipData
       ? currentRangeipData.chatIds.includes(chatId)
       : false;
+  }
+
+  async getUnsubscribedRangeips(
+    chatId: number,
+    areaId: string,
+  ): Promise<RangeipData[]> {
+    const rangeipKeys = await this.redisClient.keys(`${this.RANGEIP_PREFIX}*`);
+
+    const rangeipDataList = await Promise.all(
+      rangeipKeys.map((key) => this.redisClient.get(key)),
+    );
+
+    const unsubscribedRangeips: RangeipData[] = [];
+
+    for (const rangeip of rangeipDataList) {
+      const rangeipData = JSON.parse(rangeip);
+
+      if (
+        rangeipData &&
+        rangeipData.areaId === areaId &&
+        !rangeipData.chatIds.includes(chatId)
+      ) {
+        unsubscribedRangeips.push(rangeipData);
+      }
+    }
+
+    return unsubscribedRangeips;
+  }
+
+  async getSubscribedRangeips(
+    chatId: number,
+    areaId: string,
+  ): Promise<RangeipData[]> {
+    const rangeipKeys = await this.redisClient.keys(`${this.RANGEIP_PREFIX}*`);
+
+    const rangeipDataList = await Promise.all(
+      rangeipKeys.map((key) => this.redisClient.get(key)),
+    );
+
+    const unsubscribedRangeips: RangeipData[] = [];
+
+    for (const rangeip of rangeipDataList) {
+      const rangeipData = JSON.parse(rangeip);
+
+      if (
+        rangeipData &&
+        rangeipData.areaId === areaId &&
+        rangeipData.chatIds.includes(chatId)
+      ) {
+        unsubscribedRangeips.push(rangeipData);
+      }
+    }
+
+    return unsubscribedRangeips;
   }
 
   async getChatIdsByRangeipId(rangeipId: string): Promise<number[]> {
@@ -264,32 +341,6 @@ export class InteractionService {
     }
 
     return 'OK';
-  }
-  async getUnsubscribedRangeips(
-    chatId: number,
-    areaId: string,
-  ): Promise<RangeipData[]> {
-    const rangeipKeys = await this.redisClient.keys(`${this.RANGEIP_PREFIX}*`);
-
-    const rangeipDataList = await Promise.all(
-      rangeipKeys.map((key) => this.redisClient.get(key)),
-    );
-
-    const unsubscribedRangeips: RangeipData[] = [];
-
-    for (const rangeip of rangeipDataList) {
-      const rangeipData = JSON.parse(rangeip);
-
-      if (
-        rangeipData &&
-        rangeipData.areaId === areaId &&
-        !rangeipData.chatIds.includes(chatId)
-      ) {
-        unsubscribedRangeips.push(rangeipData);
-      }
-    }
-
-    return unsubscribedRangeips;
   }
 
   async getAreasByChatId(

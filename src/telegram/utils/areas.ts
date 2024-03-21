@@ -4,18 +4,13 @@ export const formattedAreas = (areas: any[]) =>
     .map(({ number, name }) => `${number}. ${name}`)
     .join('\n');
 
-export const formattedContainers = (containers: any[]) => {
-  const uniqueRangeipNames = new Map();
-  containers.forEach((container) => {
-    if (!uniqueRangeipNames.has(container.rangeipName)) {
-      uniqueRangeipNames.set(container.rangeipName, container.rangeipNumber);
-    }
-  });
-  return Array.from(uniqueRangeipNames.entries())
-    .sort((a, b) => a[1] - b[1])
-    .map(
-      ([rangeipName, rangeipNumber], index) =>
-        `${rangeipNumber}. ${rangeipName}`,
-    )
+export const formattedContainers = (containers: any[]) =>
+  containers
+    .sort((a, b) => a.rangeipNumber - b.rangeipNumber)
+    .map(({ rangeipName }, index) => `${index + 1}. ${rangeipName}`)
     .join('\n');
-};
+
+export const splitArrayIntoChunks = (arr, chunkSize) =>
+  Array.from({ length: Math.ceil(arr.length / chunkSize) }, (_, index) =>
+    arr.slice(index * chunkSize, index * chunkSize + chunkSize),
+  );
