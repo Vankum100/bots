@@ -93,7 +93,13 @@ export class LoginScene {
           },
         },
       );
+      if (process.env.DEBUG === '1') {
+        console.log('logging response ', response);
+      }
     } catch (err) {
+      if (process.env.DEBUG === '1') {
+        console.error('logging error ', err);
+      }
       console.error('error ', err.code || err.response.data);
       return 'ошибка при авторизации';
     }
