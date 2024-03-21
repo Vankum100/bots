@@ -5,8 +5,15 @@ import { Module } from '@nestjs/common';
 import { UserService } from './telegram/services/user.service';
 
 import { RedisModule } from '@liaoliaots/nestjs-redis';
+import { EventProducer } from './broker/event-producer.service';
+import { EventConsumer } from './broker/event-consumer.service';
 
-const services = [InteractionService, UserService];
+const services = [
+  InteractionService,
+  UserService,
+  EventProducer,
+  EventConsumer,
+];
 @Module({
   imports: [
     RedisModule.forRoot({
