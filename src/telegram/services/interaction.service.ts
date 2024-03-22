@@ -487,7 +487,7 @@ export class InteractionService {
     return areas.find((area) => area.number === index);
   }
 
-  async deleteAllAreas() {
+  async flushAreas() {
     const areaKeys = await this.redisClient.keys(`${this.AREA_PREFIX}*`);
     if (areaKeys.length === 0) {
       return;
@@ -496,6 +496,22 @@ export class InteractionService {
     const pipeline = this.redisClient.pipeline();
 
     areaKeys.forEach((key) => {
+      pipeline.del(key);
+    });
+
+    return pipeline.exec();
+  }
+
+  async flushRangeips() {
+    const rangeipKeys = await this.redisClient.keys(`${this.RANGEIP_PREFIX}*`);
+
+    if (rangeipKeys.length === 0) {
+      return;
+    }
+
+    const pipeline = this.redisClient.pipeline();
+
+    rangeipKeys.forEach((key) => {
       pipeline.del(key);
     });
 

@@ -9,8 +9,15 @@ async function bootstrap() {
   const interactionService = syncModule.get(InteractionService);
   const eventProducer = syncModule.get(EventProducer);
   const eventConsumer = syncModule.get(EventConsumer);
-  const flushedAreas = await interactionService.deleteAllAreas();
-  console.log('flushedAreas Result ', flushedAreas);
+  if (process.env.FLUSH_AREAS === 'true') {
+    const flushedAreas = await interactionService.flushAreas();
+    console.log('flushedAreas Result ', flushedAreas);
+  }
+
+  if (process.env.FLUSH_RANGEIPS === 'true') {
+    const flushedAreas = await interactionService.flushRangeips();
+    console.log('flushedRanges Result ', flushedAreas);
+  }
   await interactionService.getAllRangeips();
   setInterval(async () => {
     await interactionService.getAllRangeips();
