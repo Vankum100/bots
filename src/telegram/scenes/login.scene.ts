@@ -93,11 +93,11 @@ export class LoginScene {
           },
         },
       );
-      if (process.env.DEBUG === '1') {
+      if (process.env.DEBUG === 'true') {
         console.log('logging response ', response);
       }
     } catch (err) {
-      if (process.env.DEBUG === '1') {
+      if (process.env.DEBUG === 'true') {
         console.error('logging error ', err);
       }
       console.error('error ', err.code || err.response.data);

@@ -486,4 +486,19 @@ export class InteractionService {
     const areas = await this.getAreas();
     return areas.find((area) => area.number === index);
   }
+
+  async deleteAllAreas() {
+    const areaKeys = await this.redisClient.keys(`${this.AREA_PREFIX}*`);
+    if (areaKeys.length === 0) {
+      return;
+    }
+
+    const pipeline = this.redisClient.pipeline();
+
+    areaKeys.forEach((key) => {
+      pipeline.del(key);
+    });
+
+    return pipeline.exec();
+  }
 }

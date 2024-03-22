@@ -65,15 +65,22 @@ export class InteractionAddAreaScene {
     if (areas.length === 0) {
       await ctx.telegram.sendMessage(ctx.from.id, areasText);
     } else {
-      await ctx.telegram.sendMessage(
-        ctx.from.id,
-        `плошадки :\n${formattedAreas(areas)}\n`,
-      );
-      await ctx.telegram.sendMessage(ctx.from.id, 'Выберите номер площадки', {
-        reply_markup: {
-          inline_keyboard: inline_buttons,
-        },
-      });
+      if (
+        ![
+          InteractionAreaEnum.INTERACTION_SHOW,
+          InteractionAreaEnum.INTERACTION_SHOW_SUBSCRIBED_AREAS,
+        ].includes(interactionType)
+      ) {
+        await ctx.telegram.sendMessage(
+          ctx.from.id,
+          `плошадки :\n${formattedAreas(areas)}\n`,
+        );
+        await ctx.telegram.sendMessage(ctx.from.id, 'Выберите номер площадки', {
+          reply_markup: {
+            inline_keyboard: inline_buttons,
+          },
+        });
+      }
     }
   }
 
@@ -154,6 +161,18 @@ export class InteractionAddAreaScene {
           },
         });
       }
+    } else if (message === InteractionAreaEnum.INTERACTION_SHOW) {
+      const names = await this.interactionService.getAreas();
+      return `все плошадки :\n${formattedAreas(names)}`;
+    } else if (
+      message === InteractionAreaEnum.INTERACTION_SHOW_SUBSCRIBED_AREAS
+    ) {
+      const { userId } = await this.userService.findOne(ctx.from.id);
+      const names =
+        await this.interactionService.getSubscribedAreasByChatId(userId);
+      return names.length === 0
+        ? 'Вы не подписали еще на плошдки'
+        : `Вы подписаны на следующие плошадки:\n${formattedAreas(names)}`;
     } else if (message === BACK) {
       await ctx.scene.enter(INTERACTION_SELECT_AREA_SCENE);
     } else {
