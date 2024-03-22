@@ -1,15 +1,30 @@
 import Redis from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
+import { OnModuleDestroy } from '@nestjs/common';
 
 import { InteractionService } from '../telegram/services/interaction.service';
 
-export class EventConsumer {
+export class EventConsumer implements OnModuleDestroy {
+  private interval: NodeJS.Timeout = null;
+  private isAlive = true;
+
   constructor(
     @InjectRedis('bot') private readonly redisClient: Redis,
     private interactionService: InteractionService,
   ) {}
 
-  async consumeEvents(consumerName: string): Promise<void> {
+  // async onModuleInit() {
+  //   this.startConsumer();
+  // }
+
+  async onModuleDestroy() {
+    clearInterval(this.interval);
+    this.isAlive = false;
+  }
+
+  async consumeEvents(): Promise<void> {
+    const areas = await this.interactionService.getAreas();
+    const consumerName = areas[0].areaId;
     const streamKey = `event_stream:${process.env.MICROSERVICE_BOT_NAME}`;
     const consumerGroup = `event_consumers:${process.env.MICROSERVICE_BOT_NAME}`;
 
@@ -109,4 +124,10 @@ export class EventConsumer {
       }
     }
   }
+
+  // private startConsumer() {
+  //   this.interval = setInterval(async () => {
+  //     this.consumeEvents();
+  //   }, 1000);
+  // }
 }

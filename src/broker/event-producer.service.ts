@@ -2,14 +2,27 @@ import Redis from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 
 import { InteractionService } from '../telegram/services/interaction.service';
+import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
-export class EventProducer {
+export class EventProducer implements OnModuleInit, OnModuleDestroy {
+  private interval: NodeJS.Timeout = null;
+  private isAlive = true;
+
   constructor(
     @InjectRedis('bot') private readonly redisClient: Redis,
     private interactionService: InteractionService,
   ) {}
 
-  async produceEvents(): Promise<void> {
+  async onModuleInit() {
+    this.populateEvents();
+  }
+
+  async onModuleDestroy() {
+    clearInterval(this.interval);
+    this.isAlive = false;
+  }
+
+  private async produceEvents(): Promise<void> {
     const streamKey = `event_stream:${process.env.MICROSERVICE_BOT_NAME}`;
 
     const processEvent = async (event: string) => {
@@ -38,6 +51,7 @@ export class EventProducer {
       const keyExists = await this.redisClient.exists(deviceStatusKey);
       if (keyExists) {
         events = await this.redisClient.lrange(deviceStatusKey, 0, -1);
+        console.log('produced events... ', events.length);
       } else {
         console.log('no events... ', events);
       }
@@ -50,5 +64,11 @@ export class EventProducer {
     await this.redisClient.del(
       `device.status.${process.env.MICROSERVICE_BOT_NAME}.${3000}`,
     );
+  }
+
+  private populateEvents() {
+    this.interval = setInterval(() => {
+      this.produceEvents();
+    }, 6000);
   }
 }

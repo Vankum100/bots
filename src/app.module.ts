@@ -5,10 +5,12 @@ import { AppController } from './app.controller';
 import { TelegrafModule } from 'nestjs-telegraf';
 import { TelegramModule } from './telegram/telegram.module';
 import { sessionMiddleware } from './telegram/middlewares/session.middleware';
+import { SyncModule } from './sync.module';
 
 @Module({
   imports: [
     TelegramModule,
+    SyncModule,
     RedisModule.forRoot({
       config: [
         {
