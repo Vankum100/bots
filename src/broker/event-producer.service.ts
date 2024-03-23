@@ -2,11 +2,12 @@ import Redis from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 
 import { InteractionService } from '../telegram/services/interaction.service';
-import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
 export class EventProducer implements OnModuleInit, OnModuleDestroy {
   private interval: NodeJS.Timeout = null;
   private isAlive = true;
+  private readonly logger = new Logger('Event Producer');
 
   constructor(
     @InjectRedis('bot') private readonly redisClient: Redis,
@@ -51,12 +52,12 @@ export class EventProducer implements OnModuleInit, OnModuleDestroy {
       const keyExists = await this.redisClient.exists(deviceStatusKey);
       if (keyExists) {
         events = await this.redisClient.lrange(deviceStatusKey, 0, -1);
-        console.log('produced events... ', events.length);
+        this.logger.log(`Produced events: ${events.length}`);
       } else {
-        console.log('no events... ', events);
+        this.logger.log('No events found.');
       }
     } catch (e) {
-      console.log('redis raw events error ', e);
+      this.logger.error('Redis raw events error:', e);
     }
 
     await Promise.all(events.map(processEvent));

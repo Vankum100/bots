@@ -25,7 +25,6 @@ export class InteractionService {
   private readonly AREA_PREFIX = 'area:';
   private readonly RANGEIP_PREFIX = 'rangeip:';
   private readonly logger = new Logger('Device Status Handler');
-  private sentCount = 0;
   constructor(
     @InjectRedis('bot') private readonly redisClient: Redis,
     private readonly userService: UserService,
@@ -93,24 +92,19 @@ export class InteractionService {
     return newRangeipIds;
   }
 
-  async sendTelegramMessage(chatId: number, message: string): Promise<any> {
+  async sendTelegramMessage(
+    chatId: number,
+    message: string,
+    messageId: string,
+  ): Promise<any> {
     if (await this.userService.isNotificationEnabled(chatId)) {
-      this.logger.log(`Sending message to chatId ${chatId}`);
+      this.logger.log(`Sending message ${messageId} to chatId ${chatId}`);
       try {
         const finalUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-        const sendResponse = await axios.post(finalUrl, {
+        return axios.post(finalUrl, {
           chat_id: chatId,
           text: message,
         });
-        this.sentCount++;
-        if (this.sentCount >= 60) {
-          this.logger.warn(
-            `Delaying for 60 seconds because  ${this.sentCount} messages already sent `,
-          );
-          await new Promise((resolve) => setTimeout(resolve, 60000));
-          this.sentCount = 0;
-        }
-        return sendResponse;
       } catch (err) {
         this.logger.error('telegram error ', err);
         throw new Error(`Error sending telegram message: ${err.message}`);
