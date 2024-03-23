@@ -28,7 +28,7 @@ async function bootstrap() {
 
   setInterval(async () => {
     await interactionService.getAllRangeips();
-  }, 6000);
+  }, 7 * 6000);
 }
 
 bootstrap();

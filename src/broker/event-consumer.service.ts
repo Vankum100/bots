@@ -207,7 +207,7 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
   private async startConsumer() {
     this.interval = setInterval(async () => {
       await this.consumeEvents();
-    }, 12000);
+    }, 5 * 6000);
   }
 
   private delay(ms) {

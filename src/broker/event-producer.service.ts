@@ -70,6 +70,6 @@ export class EventProducer implements OnModuleInit, OnModuleDestroy {
   private populateEvents() {
     this.interval = setInterval(() => {
       this.produceEvents();
-    }, 6000);
+    }, 7 * 6000);
   }
 }
