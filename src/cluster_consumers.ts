@@ -28,11 +28,16 @@ async function bootstrap() {
       const flushedRanges = await interactionService.flushRangeips();
       console.log('flushedRanges Result ', flushedRanges.length);
     }
+    await interactionService.getAllRangeips();
     await eventConsumer.createConsumerGroupIfNeeded();
 
     for (let i = 1; i <= numCPUs; i++) {
       await _cluster.fork({ consumerName: `consumer_${i}` });
     }
+
+    setInterval(async () => {
+      await interactionService.getAllRangeips();
+    }, 7 * 6000);
   } else {
     console.log(
       `Worker ${process.pid} started with consumerName: ${process.env.consumerName}`,
