@@ -510,7 +510,7 @@ export class InteractionService {
   async flushAreas() {
     const areaKeys = await this.redisClient.keys(`${this.AREA_PREFIX}*`);
     if (areaKeys.length === 0) {
-      return;
+      return [];
     }
 
     const pipeline = this.redisClient.pipeline();
@@ -526,7 +526,7 @@ export class InteractionService {
     const rangeipKeys = await this.redisClient.keys(`${this.RANGEIP_PREFIX}*`);
 
     if (rangeipKeys.length === 0) {
-      return;
+      return [];
     }
 
     const pipeline = this.redisClient.pipeline();
