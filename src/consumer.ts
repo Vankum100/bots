@@ -6,7 +6,7 @@ import { EventConsumer } from './broker/event-consumer.service';
 async function bootstrap() {
   process.env.consumerName = `consumer_1`;
 
-  const syncModule = await NestFactory.create(SyncModule);
+  const syncModule = await NestFactory.createApplicationContext(SyncModule);
   const eventConsumer = syncModule.get(EventConsumer);
   const interactionService = syncModule.get(InteractionService);
   if (process.env.FLUSH_CONSUMERS === 'true') {

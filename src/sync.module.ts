@@ -1,4 +1,3 @@
-import { TelegrafModule } from 'nestjs-telegraf';
 require('dotenv').config();
 import { InteractionService } from './telegram/services/interaction.service';
 
@@ -8,8 +7,6 @@ import { UserService } from './telegram/services/user.service';
 import { RedisModule } from '@liaoliaots/nestjs-redis';
 import { EventProducer } from './broker/event-producer.service';
 import { EventConsumer } from './broker/event-consumer.service';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { sessionMiddleware } from './telegram/middlewares/session.middleware';
 
 const services = [
   InteractionService,
@@ -36,14 +33,6 @@ const services = [
             : {}),
         },
       ],
-    }),
-    TelegrafModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        token: configService.get('TELEGRAM_BOT_TOKEN'),
-        middlewares: [sessionMiddleware],
-      }),
     }),
   ],
   providers: [...services],

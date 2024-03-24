@@ -3,9 +3,6 @@ import { Redis } from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 import axios from 'axios';
 import { UserService } from './user.service';
-import { fmt, bold, italic, link } from 'telegraf/format';
-import { Telegraf } from 'telegraf';
-import { InjectBot } from 'nestjs-telegraf';
 
 interface MessageInfo {
   messageId: string;
@@ -39,7 +36,6 @@ export class InteractionService {
   private readonly logger = new Logger('Device Status Handler');
   constructor(
     @InjectRedis('bot') private readonly redisClient: Redis,
-    @InjectBot() private bot: Telegraf<any>,
     private readonly userService: UserService,
   ) {}
 
@@ -121,13 +117,23 @@ export class InteractionService {
     if (await this.userService.isNotificationEnabled(chatId)) {
       this.logger.log(`Sending message ${messageId} to chatId ${chatId}`);
       try {
-        const formattedMessage = fmt`
-          Изменение статуса устройства: ${link(bold(ipaddr), linkUrl)} \nПредыдущий:  ${bold(prevStatus)} \nТекущий: ${bold(currentStatus)}\nДата: ${italic(time)}
-        `;
-        return this.bot.telegram.sendMessage(chatId, formattedMessage, {
+        const escapedIpaddr = ipaddr.replace(/[.@-]/g, '\\$&');
+        const escapedTime = time.replace(/[:-]/g, '\\:');
+        const formattedMessage = `
+        Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nДата: _${escapedTime}_
+      `;
+
+        const finalUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+        const response = await axios.post(finalUrl, {
+          chat_id: chatId,
+          text: formattedMessage,
           parse_mode: 'MarkdownV2',
         });
+
+        return response.data;
       } catch (err) {
+        console.log('err ', err);
         this.logger.error('telegram error ', err);
         throw new Error(`Error sending telegram message: ${err.message}`);
       }

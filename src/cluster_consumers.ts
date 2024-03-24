@@ -5,17 +5,28 @@ import * as os from 'os';
 
 const numCPUs = os.cpus().length;
 import { EventConsumer } from './broker/event-consumer.service';
+import { InteractionService } from './telegram/services/interaction.service';
 
 async function bootstrap() {
-  const syncModule = await NestFactory.create(SyncModule);
+  const syncModule = await NestFactory.createApplicationContext(SyncModule);
 
   const _cluster: any = cluster;
   if (_cluster.isMaster) {
     console.log(`Master ${process.pid} is running`);
     const eventConsumer = syncModule.get(EventConsumer);
+    const interactionService = syncModule.get(InteractionService);
     if (process.env.FLUSH_CONSUMERS === 'true') {
       const flushedConsumers = await eventConsumer.deleteExistingConsumers();
       console.log('flushed consumers: ', flushedConsumers);
+    }
+    if (process.env.FLUSH_AREAS === 'true') {
+      const flushedAreas = await interactionService.flushAreas();
+      console.log('flushedAreas Result ', flushedAreas.length);
+    }
+
+    if (process.env.FLUSH_RANGEIPS === 'true') {
+      const flushedRanges = await interactionService.flushRangeips();
+      console.log('flushedRanges Result ', flushedRanges.length);
     }
     await eventConsumer.createConsumerGroupIfNeeded();
 
