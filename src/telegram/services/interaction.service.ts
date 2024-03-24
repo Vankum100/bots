@@ -3,6 +3,18 @@ import { Redis } from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 import axios from 'axios';
 import { UserService } from './user.service';
+import { fmt, bold, italic, link } from 'telegraf/format';
+import { Telegraf } from 'telegraf';
+import { InjectBot } from 'nestjs-telegraf';
+
+interface MessageInfo {
+  messageId: string;
+  link: string;
+  ipaddr: string;
+  prevStatus: string;
+  currentStatus: string;
+  time: string;
+}
 
 interface RangeipData {
   rangeipId: string;
@@ -27,6 +39,7 @@ export class InteractionService {
   private readonly logger = new Logger('Device Status Handler');
   constructor(
     @InjectRedis('bot') private readonly redisClient: Redis,
+    @InjectBot() private bot: Telegraf<any>,
     private readonly userService: UserService,
   ) {}
 
@@ -94,25 +107,32 @@ export class InteractionService {
 
   async sendTelegramMessage(
     chatId: number,
-    message: string,
-    messageId: string,
+    messageInfo: MessageInfo,
   ): Promise<any> {
+    const {
+      messageId,
+      link: linkUrl,
+      ipaddr,
+      prevStatus,
+      currentStatus,
+      time,
+    } = messageInfo;
+
     if (await this.userService.isNotificationEnabled(chatId)) {
       this.logger.log(`Sending message ${messageId} to chatId ${chatId}`);
       try {
-        const finalUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-        return axios.post(finalUrl, {
-          chat_id: chatId,
-          text: message,
+        const formattedMessage = fmt`
+          Изменение статуса устройства: ${link(bold(ipaddr), linkUrl)} \nПредыдущий:  ${bold(prevStatus)} \nТекущий: ${bold(currentStatus)}\nДата: ${italic(time)}
+        `;
+        return this.bot.telegram.sendMessage(chatId, formattedMessage, {
+          parse_mode: 'MarkdownV2',
         });
       } catch (err) {
         this.logger.error('telegram error ', err);
         throw new Error(`Error sending telegram message: ${err.message}`);
       }
     } else {
-      this.logger.warn(
-        ` Notifications currently disabled for userId ${chatId} `,
-      );
+      this.logger.warn(`Notifications currently disabled for userId ${chatId}`);
     }
   }
 

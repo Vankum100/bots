@@ -77,11 +77,10 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
           this.isRateLimited = false;
         }
 
-        await this.interactionService.sendTelegramMessage(
-          chatId,
-          eventMessage,
+        await this.interactionService.sendTelegramMessage(chatId, {
+          ...eventMessage,
           messageId,
-        );
+        });
         await this.redisClient.xack(
           this.streamKey,
           this.consumerGroup,
@@ -221,29 +220,47 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
         this.streamKey,
         this.consumerGroup,
       );
+
       if (consumersInfo && consumersInfo.length > 0) {
         for (const consumer of consumersInfo) {
           const consumerName = consumer[1];
-          await this.redisClient.xgroup(
-            'DELCONSUMER',
-            this.streamKey,
-            this.consumerGroup,
-            consumerName,
-          );
-          console.log(
-            `Deleted consumer ${consumerName} from group ${this.consumerGroup}`,
-          );
+          try {
+            await this.redisClient.xgroup(
+              'DELCONSUMER',
+              this.streamKey,
+              this.consumerGroup,
+              consumerName,
+            );
+            console.log(
+              `Deleted consumer ${consumerName} from group ${this.consumerGroup}`,
+            );
+          } catch (deleteError) {
+            console.error(
+              `Error deleting consumer ${consumerName}:`,
+              deleteError,
+            );
+          }
         }
+        return consumersInfo.length;
+      } else {
+        console.log(`No consumers found in group ${this.consumerGroup}`);
+        return 0;
       }
-      return consumersInfo && consumersInfo.length > 0
-        ? consumersInfo.length
-        : 0;
     } catch (error) {
-      console.error(
-        `Error deleting existing consumers from group ${this.consumerGroup}:`,
-        error,
-      );
-      throw error;
+      if (
+        error.command &&
+        error.command.name === 'xinfo' &&
+        error.message === 'ERR no such key'
+      ) {
+        console.log(`Key ${this.streamKey} does not exist`);
+        return 0;
+      } else {
+        console.error(
+          `Error deleting existing consumers from group ${this.consumerGroup}:`,
+          error,
+        );
+        throw error;
+      }
     }
   }
 }

@@ -27,7 +27,9 @@ export class EventProducer implements OnModuleInit, OnModuleDestroy {
     const streamKey = `event_stream:${process.env.MICROSERVICE_BOT_NAME}`;
 
     const processEvent = async (event: string) => {
-      const { message, rangeipId } = JSON.parse(event);
+      const { link, prevStatus, currentStatus, time, rangeipId, ipaddr } =
+        JSON.parse(event);
+      const message = { ipaddr, link, prevStatus, currentStatus, time };
       const chatIds =
         await this.interactionService.getChatIdsByRangeipId(rangeipId);
       const streamData = chatIds.map((chatId) => ({
