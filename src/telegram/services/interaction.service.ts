@@ -117,8 +117,8 @@ export class InteractionService {
     if (await this.userService.isNotificationEnabled(chatId)) {
       this.logger.log(`Sending message ${messageId} to chatId ${chatId}`);
       try {
-        const escapedIpaddr = ipaddr.replace(/[.@-]/g, '\\$&');
-        const escapedTime = time.replace(/[:-]/g, '\\:');
+        const escapedIpaddr = ipaddr.replace(/[.@:]/g, '\\$&');
+        const escapedTime = time.replace(/[:-]/g, '\\$&');
         const formattedMessage = `
         Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nДата: _${escapedTime}_
       `;
