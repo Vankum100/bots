@@ -2,16 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 import axios from 'axios';
-import { UserService } from './user.service';
-
-interface MessageInfo {
-  messageId: string;
-  link: string;
-  ipaddr: string;
-  prevStatus: string;
-  currentStatus: string;
-  time: string;
-}
 
 interface RangeipData {
   rangeipId: string;
@@ -36,7 +26,6 @@ export class InteractionService {
   private readonly logger = new Logger('Device Status Handler');
   constructor(
     @InjectRedis('bot') private readonly redisClient: Redis,
-    private readonly userService: UserService,
   ) {}
 
   async getAllRangeips(): Promise<any> {
@@ -99,47 +88,6 @@ export class InteractionService {
       rangeipNumber++;
     }
     return newRangeipIds;
-  }
-
-  async sendTelegramMessage(
-    chatId: number,
-    messageInfo: MessageInfo,
-  ): Promise<any> {
-    const {
-      messageId,
-      link: linkUrl,
-      ipaddr,
-      prevStatus,
-      currentStatus,
-      time,
-    } = messageInfo;
-
-    if (await this.userService.isNotificationEnabled(chatId)) {
-      this.logger.log(`Sending message ${messageId} to chatId ${chatId}`);
-      try {
-        const escapedIpaddr = ipaddr.replace(/[.@:]/g, '\\$&');
-        const escapedTime = time.replace(/[:-]/g, '\\$&');
-        const formattedMessage = `
-        Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nДата: _${escapedTime}_
-      `;
-
-        const finalUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-
-        const response = await axios.post(finalUrl, {
-          chat_id: chatId,
-          text: formattedMessage,
-          parse_mode: 'MarkdownV2',
-        });
-
-        return response.data;
-      } catch (err) {
-        console.log('err ', err);
-        this.logger.error('telegram error ', err);
-        throw new Error(`Error sending telegram message: ${err.message}`);
-      }
-    } else {
-      this.logger.warn(`Notifications currently disabled for userId ${chatId}`);
-    }
   }
 
   async getRangeipData(rangeipId: string): Promise<RangeipData | null> {

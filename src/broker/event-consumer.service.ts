@@ -1,8 +1,18 @@
 import Redis from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 import { Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { InteractionService } from '../telegram/services/interaction.service';
 import * as process from 'process';
+import axios from 'axios';
+import { UserService } from '../telegram/services/user.service';
+
+interface MessageInfo {
+  messageId: string;
+  link: string;
+  ipaddr: string;
+  prevStatus: string;
+  currentStatus: string;
+  time: string;
+}
 
 export class EventConsumer implements OnModuleDestroy, OnModuleInit {
   private interval: NodeJS.Timeout = null;
@@ -23,7 +33,7 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
 
   constructor(
     @InjectRedis('bot') private readonly redisClient: Redis,
-    private interactionService: InteractionService,
+    private readonly userService: UserService,
   ) {
     this.streamKey = `event_stream:${process.env.MICROSERVICE_BOT_NAME}`;
     this.consumerGroup = `event_consumers:${process.env.MICROSERVICE_BOT_NAME}`;
@@ -37,6 +47,46 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
   async onModuleDestroy() {
     clearInterval(this.interval);
     this.isAlive = false;
+  }
+  async sendTelegramMessage(
+    chatId: number,
+    messageInfo: MessageInfo,
+  ): Promise<any> {
+    const {
+      messageId,
+      link: linkUrl,
+      ipaddr,
+      prevStatus,
+      currentStatus,
+      time,
+    } = messageInfo;
+
+    if (await this.userService.isNotificationEnabled(chatId)) {
+      this.logger.log(`Sending message ${messageId} to chatId ${chatId}`);
+      try {
+        const escapedIpaddr = ipaddr.replace(/[.@:]/g, '\\$&');
+        const escapedTime = time.replace(/[:-]/g, '\\$&');
+        const formattedMessage = `
+        Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nДата: _${escapedTime}_
+      `;
+
+        const finalUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+        const response = await axios.post(finalUrl, {
+          chat_id: chatId,
+          text: formattedMessage,
+          parse_mode: 'MarkdownV2',
+        });
+
+        return response.data;
+      } catch (err) {
+        console.log('err ', err);
+        this.logger.error('telegram error ', err);
+        throw new Error(`Error sending telegram message: ${err.message}`);
+      }
+    } else {
+      this.logger.warn(`Notifications currently disabled for userId ${chatId}`);
+    }
   }
 
   async consumeEvents() {
@@ -77,7 +127,7 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
           this.isRateLimited = false;
         }
 
-        await this.interactionService.sendTelegramMessage(chatId, {
+        await this.sendTelegramMessage(chatId, {
           ...eventMessage,
           messageId,
         });
