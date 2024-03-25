@@ -7,6 +7,7 @@ export type User = {
   userId: number;
   phone: string;
   notificationEnabled?: boolean;
+  isLoggedIn?: boolean;
 };
 @Injectable()
 export class UserService {
@@ -44,5 +45,18 @@ export class UserService {
     return user && user.notificationEnabled !== undefined
       ? user.notificationEnabled
       : false;
+  }
+
+  async isLoggedIn(userId: number): Promise<boolean> {
+    const user = await this.findOne(userId);
+    return user && user.isLoggedIn !== undefined ? user.isLoggedIn : false;
+  }
+
+  async updateAuthStatus(userId: number, isLoggedIn: boolean): Promise<void> {
+    const user = await this.findOne(userId);
+    if (user) {
+      user.isLoggedIn = isLoggedIn;
+      await this.redisClient.set(`user:${userId}`, JSON.stringify(user));
+    }
   }
 }
