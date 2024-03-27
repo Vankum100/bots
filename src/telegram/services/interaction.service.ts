@@ -13,7 +13,7 @@ interface RangeipData {
   chatIds?: number[];
 }
 
-interface AreaData {
+export interface AreaData {
   areaId: string;
   name: string;
   number: number;
@@ -24,9 +24,7 @@ export class InteractionService {
   private readonly AREA_PREFIX = 'area:';
   private readonly RANGEIP_PREFIX = 'rangeip:';
   private readonly logger = new Logger('Device Status Handler');
-  constructor(
-    @InjectRedis('bot') private readonly redisClient: Redis,
-  ) {}
+  constructor(@InjectRedis('bot') private readonly redisClient: Redis) {}
 
   async getAllRangeips(): Promise<any> {
     let response: any;
@@ -326,6 +324,26 @@ export class InteractionService {
     return 'OK';
   }
 
+  async subscribeUserToAllArea(chatId: number): Promise<string> {
+    const allAreas = await this.getAreas();
+
+    for (const area of allAreas) {
+      await this.subscribeUserToArea(chatId, area.areaId);
+    }
+
+    return 'OK';
+  }
+
+  async unsubscribeUserFromAllArea(chatId: number): Promise<string> {
+    const allAreas = await this.getAreas();
+
+    for (const area of allAreas) {
+      await this.unsubscribeUserFromArea(chatId, area.areaId);
+    }
+
+    return 'OK';
+  }
+
   async getAreasByChatId(
     chatId: number,
     subscribed: boolean,
@@ -484,5 +502,103 @@ export class InteractionService {
     });
 
     return pipeline.exec();
+  }
+
+  private async getCachedRangeipStats(areaId: string, rangeipId: string) {
+    //todo fetch from log_cache_*_day
+    return {
+      areaId,
+      rangeipId,
+      onlineCount: 0,
+      offlineCount: 0,
+      totalConsumption: 0,
+      totalHashRate: 0,
+      totalUpTime: 0,
+    };
+  }
+
+  async containerStats(areaId: string, rangeipId: string): Promise<string> {
+    const rangeipsInArea = await this.getRangeipsByAreaId(areaId);
+    const targetRangeip = rangeipsInArea.find(
+      (rangeip) => rangeip.rangeipId === rangeipId,
+    );
+    if (!targetRangeip) return 'Rangeip not found in the specified area.';
+
+    const relevantRangeips = rangeipsInArea.filter(
+      (rangeip) => rangeip.rangeipName === targetRangeip.rangeipName,
+    );
+
+    const {
+      onlineCount = 0,
+      offlineCount = 0,
+      totalConsumption = 0,
+      totalHashRate = 0,
+      totalUpTime = 0,
+    } = relevantRangeips.reduce(
+      async (accumulator: any, rangeip) => {
+        const rangeipData: any = await this.getCachedRangeipStats(
+          areaId,
+          rangeip.rangeipId,
+        );
+        accumulator.onlineCount += rangeipData.onlineCount;
+        accumulator.offlineCount += rangeipData.offlineCount;
+        accumulator.totalConsumption += rangeipData.totalConsumption;
+        accumulator.totalHashRate += rangeipData.totalHashRate;
+        accumulator.totalUpTime += rangeipData.totalUpTime;
+        return accumulator;
+      },
+      {
+        onlineCount: 0,
+        offlineCount: 0,
+        totalConsumption: 0,
+        totalHashRate: 0,
+        totalUpTime: 0,
+      },
+    );
+
+    return (
+      `Статистика по ${targetRangeip.rangeipName}:\n` +
+      `Онлайн: ${onlineCount}\n` +
+      `Предупреждение: ${offlineCount}\n` +
+      `Не в сети: ${offlineCount}\n` +
+      `Текущее потребление: ${totalConsumption}\n` +
+      `Текущий хэш-рейт: ${totalHashRate}\n` +
+      `Текущий UpTime: ${totalUpTime}`
+    );
+  }
+
+  async areaStats(areaNumber: number): Promise<string> {
+    const area = await this.getAreaByNumber(areaNumber);
+    if (!area) return 'Area not found.';
+
+    const {
+      onlineCount,
+      offlineCount,
+      totalConsumption,
+      totalHashRate,
+      totalUpTime,
+    }: any = await this.getCachedAreaStats(area.areaId);
+
+    return (
+      `Статистика по площадке ${area.name}:\n` +
+      `Онлайн: ${onlineCount}\n` +
+      `Предупреждение: ${offlineCount}\n` +
+      `Не в сети: ${offlineCount}\n` +
+      `Текущее потребление: ${totalConsumption}\n` +
+      `Текущий хэш-рейт: ${totalHashRate}\n` +
+      `Текущий UpTime: ${totalUpTime}`
+    );
+  }
+
+  private async getCachedAreaStats(areaId) {
+    //todo fetch from log_service
+    return {
+      areaId,
+      onlineCount: 0,
+      offlineCount: 0,
+      totalConsumption: 0,
+      totalHashRate: 0,
+      totalUpTime: 0,
+    };
   }
 }
