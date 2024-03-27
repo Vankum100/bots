@@ -92,28 +92,50 @@ export class InteractionScene {
   }
 
   private async selectionHandler(ctx: Context) {
-    const areas = await this.interactionService.getAreas();
-    const inline_keyboard = areas
-      .sort((a, b) => a.number - b.number)
-      .map((area) => ({
-        text: `${area.name}`,
-        callback_data: `${InteractionActionsEnum.SUBSCRIBE_MORE}_${area.number}`,
-      }));
-    const inline_buttons = splitArrayIntoChunks(inline_keyboard, 2);
-
-    await ctx.telegram.sendMessage(ctx.from.id, 'Выберите площадку', {
-      reply_markup: {
-        inline_keyboard: [
-          ...inline_buttons,
-          [
-            {
-              text: `${SELECT_ALL_AREAS}`,
-              callback_data: `${SELECT_ALL_AREAS_CB}_${0}`,
-            },
+    const areas = await this.interactionService.getUnsubscribedAreasByChatId(
+      ctx.from.id,
+    );
+    if (areas.length === 0) {
+      const responseText = `Вы подписаны на все площадки`;
+      await ctx.telegram.sendMessage(ctx.from.id, responseText, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: 'Узнать мои площадки',
+                callback_data: `${UNSELECT_AREAS_OR_CONTAINERS_CB}_${0}`,
+              },
+              {
+                text: 'Назад в главное меню',
+                callback_data: `${InteractionActionsEnum.RETURN_TO_MAIN_MENU}_${0}_${InteractionActionsEnum.RETURN_TO_MAIN_MENU}`,
+              },
+            ],
           ],
-        ],
-      },
-    });
+        },
+      });
+    } else {
+      const inline_keyboard = areas
+        .sort((a, b) => a.number - b.number)
+        .map((area) => ({
+          text: `${area.name}`,
+          callback_data: `${InteractionActionsEnum.SUBSCRIBE_MORE}_${area.number}`,
+        }));
+      const inline_buttons = splitArrayIntoChunks(inline_keyboard, 2);
+
+      await ctx.telegram.sendMessage(ctx.from.id, 'Выберите площадку', {
+        reply_markup: {
+          inline_keyboard: [
+            ...inline_buttons,
+            [
+              {
+                text: `${SELECT_ALL_AREAS}`,
+                callback_data: `${SELECT_ALL_AREAS_CB}_${0}`,
+              },
+            ],
+          ],
+        },
+      });
+    }
   }
 
   private async showInfoHandler(ctx: Context) {
