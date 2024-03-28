@@ -71,7 +71,7 @@ export class InteractionScene {
 
   @On('text')
   async onText(@Ctx() ctx: Context) {
-    // @ts-ignore
+    // @ts-expect-error if there is no text
     const text = ctx.message.text;
     const command = text.trim().split(' ')[0];
 
@@ -214,8 +214,6 @@ export class InteractionScene {
 
     const areaStatsMessage = await this.interactionService.areaStats(number);
 
-    await ctx.telegram.sendMessage(ctx.from.id, areaStatsMessage);
-
     const inline_buttons = splitArrayIntoChunks(inline_keyboard, 2);
     if (containers_.length === 0) {
       const responseText = `Вы отписаны ото всех контейнеров площадкой ${name}`;
@@ -236,25 +234,29 @@ export class InteractionScene {
         },
       });
     } else {
-      await ctx.telegram.sendMessage(ctx.from.id, 'Выберите контейнер', {
-        reply_markup: {
-          inline_keyboard: [
-            ...inline_buttons,
-            [
-              {
-                text: `${UNSELECT_ALL_AREA_CONTAINERS}`,
-                callback_data: `${UNSELECT_ALL_AREA_CONTAINERS_CB}_${number}`,
-              },
+      await ctx.telegram.sendMessage(
+        ctx.from.id,
+        `${areaStatsMessage} \nВыберите контейнер`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              ...inline_buttons,
+              [
+                {
+                  text: `${UNSELECT_ALL_AREA_CONTAINERS}`,
+                  callback_data: `${UNSELECT_ALL_AREA_CONTAINERS_CB}_${number}`,
+                },
+              ],
+              [
+                {
+                  text: 'Назад в главное меню',
+                  callback_data: `${InteractionActionsEnum.RETURN_TO_MAIN_MENU}_${0}_${InteractionActionsEnum.RETURN_TO_MAIN_MENU}`,
+                },
+              ],
             ],
-            [
-              {
-                text: 'Назад в главное меню',
-                callback_data: `${InteractionActionsEnum.RETURN_TO_MAIN_MENU}_${0}_${InteractionActionsEnum.RETURN_TO_MAIN_MENU}`,
-              },
-            ],
-          ],
+          },
         },
-      });
+      );
     }
   }
 
@@ -328,10 +330,9 @@ export class InteractionScene {
   }
 
   async onCallbackQueryHandler(@Ctx() ctx: Context) {
-    // @ts-expect-error
+    // @ts-expect-error if there is no callback
     const callbackData = ctx.callbackQuery?.data as string;
     const [interactionType, message] = callbackData.split('_');
-    console.log('interactionType ', interactionType, 'message ', message);
     if (
       callbackData.indexOf(InteractionActionsEnum.REVERT_INTERACTION) !== -1
     ) {

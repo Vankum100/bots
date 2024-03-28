@@ -12,13 +12,6 @@ export type User = {
 @Injectable()
 export class UserService {
   constructor(@InjectRedis('bot') private readonly redisClient: Redis) {}
-
-  async findAll(): Promise<User[]> {
-    const keys = await this.redisClient.keys('user:*');
-    const users = await this.redisClient.mget(...keys);
-    return users.map((userString) => JSON.parse(userString));
-  }
-
   async findOne(userId: number): Promise<User | null> {
     const userString = await this.redisClient.get(`user:${userId}`);
     return userString ? JSON.parse(userString) : null;
