@@ -25,6 +25,7 @@ import {
   UNSELECT_AREAS_OR_CONTAINERS_CB,
 } from '../constants/menu';
 
+const ELEMENTS_PER_PAGE = parseInt(process.env.TELEGRAM_PAGINATION_SIZE) || 4;
 @Scene(INTERACTION_SCENE)
 export class InteractionScene {
   constructor(
@@ -90,11 +91,51 @@ export class InteractionScene {
         return this.onTextHandler(ctx, text);
     }
   }
+  private async paginateInlineKeyboard(
+    ctx: Context,
+    elements: any[],
+    currentPage: number,
+    totalPages: number,
+    callbackDataPrefix: string,
+    message: string,
+    otherButtons: any[],
+  ) {
+    const startIndex = (currentPage - 1) * ELEMENTS_PER_PAGE;
+    const endIndex = Math.min(startIndex + ELEMENTS_PER_PAGE, elements.length);
+    const inline_keyboard = elements.slice(startIndex, endIndex);
 
-  private async selectionHandler(ctx: Context) {
+    const prevButton = {
+      text: '◀️ Пред.',
+      callback_data: `${callbackDataPrefix}_${currentPage - 1}`,
+    };
+
+    const nextButton = {
+      text: 'След. ▶️',
+      callback_data: `${callbackDataPrefix}_${currentPage + 1}`,
+    };
+
+    const navigationButtons = [];
+    if (currentPage > 1) navigationButtons.push(prevButton);
+    if (currentPage < totalPages) navigationButtons.push(nextButton);
+
+    const inline_buttons: any = splitArrayIntoChunks([...inline_keyboard], 2);
+
+    await ctx.telegram.sendMessage(ctx.from.id, message, {
+      reply_markup: {
+        inline_keyboard: [
+          ...inline_buttons,
+          ...otherButtons,
+          [...navigationButtons],
+        ],
+      },
+    });
+  }
+
+  private async selectionHandler(ctx: Context, currentPage = 1) {
     const areas = await this.interactionService.getUnsubscribedAreasByChatId(
       ctx.from.id,
     );
+    const totalPages = Math.ceil(areas.length / ELEMENTS_PER_PAGE);
     if (areas.length === 0) {
       const responseText = `Вы подписаны на все площадки`;
       await ctx.telegram.sendMessage(ctx.from.id, responseText, {
@@ -120,28 +161,31 @@ export class InteractionScene {
           text: `${area.name}`,
           callback_data: `${InteractionActionsEnum.SUBSCRIBE_MORE}_${area.number}`,
         }));
-      const inline_buttons = splitArrayIntoChunks(inline_keyboard, 2);
-
-      await ctx.telegram.sendMessage(ctx.from.id, 'Выберите площадку', {
-        reply_markup: {
-          inline_keyboard: [
-            ...inline_buttons,
-            [
-              {
-                text: `${SELECT_ALL_AREAS}`,
-                callback_data: `${SELECT_ALL_AREAS_CB}_${0}`,
-              },
-            ],
-          ],
-        },
-      });
+      const otherButtons = [
+        [
+          {
+            text: `${SELECT_ALL_AREAS}`,
+            callback_data: `${SELECT_ALL_AREAS_CB}_${0}`,
+          },
+        ],
+      ];
+      await this.paginateInlineKeyboard(
+        ctx,
+        inline_keyboard,
+        currentPage,
+        totalPages,
+        `${SELECT_AREAS_OR_CONTAINERS_CB}_${0}`,
+        'Выберите площадку',
+        otherButtons,
+      );
     }
   }
 
-  private async showInfoHandler(ctx: Context) {
+  private async showInfoHandler(ctx: Context, currentPage: number = 1) {
     const { userId } = await this.userService.findOne(ctx.from.id);
     const myAreas: AreaData[] =
       await this.interactionService.getSubscribedAreasByChatId(userId);
+    const totalPages = Math.ceil(myAreas.length / ELEMENTS_PER_PAGE);
     if (myAreas.length === 0) {
       const responseText = `Вы не подписаны на площадки`;
       await ctx.telegram.sendMessage(ctx.from.id, responseText, {
@@ -167,31 +211,39 @@ export class InteractionScene {
           text: `${area.name}`,
           callback_data: `${InteractionActionsEnum.UNSUBSCRIBE_MORE}_${area.number}`,
         }));
-      const inline_buttons = splitArrayIntoChunks(inline_keyboard, 2);
 
-      await ctx.telegram.sendMessage(ctx.from.id, 'Список площадок', {
-        reply_markup: {
-          inline_keyboard: [
-            ...inline_buttons,
-            [
-              {
-                text: `${UNSELECT_ALL_AREAS}`,
-                callback_data: `${UNSELECT_ALL_AREAS_CB}_${0}`,
-              },
-            ],
-            [
-              {
-                text: 'Назад в главное меню',
-                callback_data: `${InteractionActionsEnum.RETURN_TO_MAIN_MENU}_${0}_${InteractionActionsEnum.RETURN_TO_MAIN_MENU}`,
-              },
-            ],
-          ],
-        },
-      });
+      const otherButtons = [
+        [
+          {
+            text: `${UNSELECT_ALL_AREAS}`,
+            callback_data: `${UNSELECT_ALL_AREAS_CB}_${0}`,
+          },
+        ],
+        [
+          {
+            text: 'Назад в главное меню',
+            callback_data: `${InteractionActionsEnum.RETURN_TO_MAIN_MENU}_${0}_${InteractionActionsEnum.RETURN_TO_MAIN_MENU}`,
+          },
+        ],
+      ];
+
+      await this.paginateInlineKeyboard(
+        ctx,
+        inline_keyboard,
+        currentPage,
+        totalPages,
+        `${UNSELECT_AREAS_OR_CONTAINERS_CB}_${0}`,
+        'Список площадок',
+        otherButtons,
+      );
     }
   }
 
-  private async unsubscriptionHandler(ctx: Context, message: any) {
+  private async unsubscriptionHandler(
+    ctx: Context,
+    message: any,
+    currentPage: number = 1,
+  ): Promise<void> {
     const { areaId, name, number } =
       await this.interactionService.getAreaByNumber(Number(message));
     const containers_ = await this.interactionService.getSubscribedRangeips(
@@ -213,8 +265,7 @@ export class InteractionScene {
       }));
 
     const areaStatsMessage = await this.interactionService.areaStats(number);
-
-    const inline_buttons = splitArrayIntoChunks(inline_keyboard, 2);
+    const totalPages = Math.ceil(containers.length / ELEMENTS_PER_PAGE);
     if (containers_.length === 0) {
       const responseText = `Вы отписаны ото всех контейнеров площадкой ${name}`;
       await ctx.telegram.sendMessage(ctx.from.id, responseText, {
@@ -234,33 +285,38 @@ export class InteractionScene {
         },
       });
     } else {
-      await ctx.telegram.sendMessage(
-        ctx.from.id,
-        `${areaStatsMessage} \nВыберите контейнер`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              ...inline_buttons,
-              [
-                {
-                  text: `${UNSELECT_ALL_AREA_CONTAINERS}`,
-                  callback_data: `${UNSELECT_ALL_AREA_CONTAINERS_CB}_${number}`,
-                },
-              ],
-              [
-                {
-                  text: 'Назад в главное меню',
-                  callback_data: `${InteractionActionsEnum.RETURN_TO_MAIN_MENU}_${0}_${InteractionActionsEnum.RETURN_TO_MAIN_MENU}`,
-                },
-              ],
-            ],
+      const otherButtons = [
+        [
+          {
+            text: `${UNSELECT_ALL_AREA_CONTAINERS}`,
+            callback_data: `${UNSELECT_ALL_AREA_CONTAINERS_CB}_${number}`,
           },
-        },
+        ],
+        [
+          {
+            text: 'Назад в главное меню',
+            callback_data: `${InteractionActionsEnum.RETURN_TO_MAIN_MENU}_${0}_${InteractionActionsEnum.RETURN_TO_MAIN_MENU}`,
+          },
+        ],
+      ];
+
+      await this.paginateInlineKeyboard(
+        ctx,
+        inline_keyboard,
+        currentPage,
+        totalPages,
+        `${InteractionActionsEnum.UNSUBSCRIBE_MORE}_${number}`,
+        areaStatsMessage,
+        otherButtons,
       );
     }
   }
 
-  private async subscriptionHandler(ctx: Context, message: any) {
+  private async subscriptionHandler(
+    ctx: Context,
+    message: any,
+    currentPage: number = 1,
+  ) {
     const { areaId, name, number } =
       await this.interactionService.getAreaByNumber(Number(message));
     const containers_ = await this.interactionService.getUnsubscribedRangeips(
@@ -281,8 +337,7 @@ export class InteractionScene {
         text: `${container.rangeipName}`,
         callback_data: `${SUBSCRIBE_AREA_CONTAINER_CB}_${container.rangeipNumber}`,
       }));
-
-    const inline_buttons = splitArrayIntoChunks(inline_keyboard, 2);
+    const totalPages = Math.ceil(containers.length / ELEMENTS_PER_PAGE);
 
     if (containers_.length === 0) {
       const responseText = `Вы уже подписаны на все контейнеры площадкой ${name}`;
@@ -303,19 +358,30 @@ export class InteractionScene {
         },
       });
     } else {
-      await ctx.telegram.sendMessage(ctx.from.id, 'Выберите контейнер', {
-        reply_markup: {
-          inline_keyboard: [
-            ...inline_buttons,
-            [
-              {
-                text: `${SELECT_ALL_AREA_CONTAINERS}`,
-                callback_data: `${SELECT_ALL_AREA_CONTAINERS_CB}_${number}`,
-              },
-            ],
-          ],
-        },
-      });
+      const otherButtons = [
+        [
+          {
+            text: `${SELECT_ALL_AREA_CONTAINERS}`,
+            callback_data: `${SELECT_ALL_AREA_CONTAINERS_CB}_${number}`,
+          },
+        ],
+        [
+          {
+            text: 'Назад к выбору площадок',
+            callback_data: `${SELECT_AREAS_OR_CONTAINERS_CB}_${message}`,
+          },
+        ],
+      ];
+
+      await this.paginateInlineKeyboard(
+        ctx,
+        inline_keyboard,
+        currentPage,
+        totalPages,
+        `${InteractionActionsEnum.SUBSCRIBE_MORE}_${number}`,
+        'Выберите контейнер',
+        otherButtons,
+      );
     }
   }
 
@@ -332,7 +398,9 @@ export class InteractionScene {
   async onCallbackQueryHandler(@Ctx() ctx: Context) {
     // @ts-expect-error if there is no callback
     const callbackData = ctx.callbackQuery?.data as string;
-    const [interactionType, message] = callbackData.split('_');
+    const [interactionType, message, actionPage] = callbackData.split('_');
+    let currentPage = parseInt(actionPage);
+    if (isNaN(currentPage)) currentPage = 1;
     if (
       callbackData.indexOf(InteractionActionsEnum.REVERT_INTERACTION) !== -1
     ) {
@@ -357,7 +425,7 @@ export class InteractionScene {
           );
           const responseText = `Вы успешно отписаны от площадкой ${areaName}, ${rangeipName}`;
           await ctx.telegram.sendMessage(ctx.from.id, responseText);
-          await this.subscriptionHandler(ctx, areaNumber);
+          await this.subscriptionHandler(ctx, areaNumber, currentPage);
         } else if (interactionType === UNSUBSCRIBE_AREA_CONTAINER_CB) {
           await this.interactionService.subscribeUserToContainer(
             userId,
@@ -365,18 +433,18 @@ export class InteractionScene {
           );
           const responseText = `Вы успешно подписаны на площадку ${areaName}, ${rangeipName}`;
           await ctx.telegram.sendMessage(ctx.from.id, responseText);
-          await this.unsubscriptionHandler(ctx, areaNumber);
+          await this.unsubscriptionHandler(ctx, areaNumber, currentPage);
         }
       } else if (interactionType === SELECT_ALL_AREAS_CB) {
         await this.interactionService.unsubscribeUserFromAllArea(ctx.from.id);
         const responseText = `Вы успешно отписаны ото всех площадок`;
         await ctx.telegram.sendMessage(ctx.from.id, responseText);
-        await this.selectionHandler(ctx);
+        await this.selectionHandler(ctx, currentPage);
       } else if (interactionType === UNSELECT_ALL_AREAS_CB) {
         await this.interactionService.subscribeUserToAllArea(ctx.from.id);
         const responseText = `Вы успешно подписаны на все площадки`;
         await ctx.telegram.sendMessage(ctx.from.id, responseText);
-        await this.showInfoHandler(ctx);
+        await this.showInfoHandler(ctx, currentPage);
       } else {
         const { areaId, name, number } =
           await this.interactionService.getAreaByNumber(Number(message));
@@ -386,12 +454,12 @@ export class InteractionScene {
           await this.interactionService.unsubscribeUserFromArea(userId, areaId);
           const responseText = `Вы успешно отписаны от площадкой ${name}`;
           await ctx.telegram.sendMessage(ctx.from.id, responseText);
-          await this.subscriptionHandler(ctx, number);
+          await this.subscriptionHandler(ctx, number, currentPage);
         } else if (interactionType === UNSELECT_ALL_AREA_CONTAINERS_CB) {
           await this.interactionService.subscribeUserToArea(userId, areaId);
           const responseText = `Вы подписаны на все контейнеры площадки ${name}`;
           await ctx.telegram.sendMessage(ctx.from.id, responseText);
-          await this.unsubscriptionHandler(ctx, message);
+          await this.unsubscriptionHandler(ctx, message, currentPage);
         }
       }
     } else if (interactionType === UNSELECT_ALL_AREA_CONTAINERS_CB) {
@@ -443,9 +511,9 @@ export class InteractionScene {
         },
       });
     } else if (interactionType === InteractionActionsEnum.SUBSCRIBE_MORE) {
-      await this.subscriptionHandler(ctx, message);
+      await this.subscriptionHandler(ctx, message, currentPage);
     } else if (interactionType === InteractionActionsEnum.UNSUBSCRIBE_MORE) {
-      await this.unsubscriptionHandler(ctx, message);
+      await this.unsubscriptionHandler(ctx, message, currentPage);
     } else if (interactionType === UNSUBSCRIBE_AREA_CONTAINER_CB) {
       const {
         rangeipId: containerId,
@@ -555,9 +623,9 @@ export class InteractionScene {
     } else if (interactionType === InteractionActionsEnum.RETURN_TO_MAIN_MENU) {
       await this.sceneEnter(ctx);
     } else if (interactionType === SELECT_AREAS_OR_CONTAINERS_CB) {
-      await this.selectionHandler(ctx);
+      await this.selectionHandler(ctx, currentPage);
     } else if (interactionType === UNSELECT_AREAS_OR_CONTAINERS_CB) {
-      await this.showInfoHandler(ctx);
+      await this.showInfoHandler(ctx, currentPage);
     } else if (interactionType === SELECT_ALL_AREAS_CB) {
       await this.interactionService.subscribeUserToAllArea(ctx.from.id);
       const responseText = `Вы успешно подписаны на все площадки`;

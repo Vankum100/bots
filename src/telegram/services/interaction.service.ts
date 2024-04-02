@@ -358,31 +358,16 @@ export class InteractionService {
 
     for (const rangeip of subscribedRangeipDataList) {
       const rangeipData = JSON.parse(rangeip);
-
+      const rangeipsInArea = await this.getRangeipsByAreaId(rangeipData.areaId);
       if (
-        rangeipData &&
-        rangeipData.chatIds &&
-        !rangeipData.chatIds.includes(chatId)
+        !unsubscribedAreasMap[rangeipData.areaId] &&
+        rangeipsInArea.some((rangeip) => !rangeip.chatIds.includes(chatId))
       ) {
-        let areaIdHasChatId = false;
-        for (const otherRangeip of subscribedRangeipDataList) {
-          const otherRangeipData = JSON.parse(otherRangeip);
-          if (
-            otherRangeipData.areaId === rangeipData.areaId &&
-            otherRangeipData.chatIds &&
-            otherRangeipData.chatIds.includes(chatId)
-          ) {
-            areaIdHasChatId = true;
-            break;
-          }
-        }
-        if (!areaIdHasChatId) {
-          unsubscribedAreasMap[rangeipData.areaId] = {
-            areaId: rangeipData.areaId,
-            name: rangeipData.areaName,
-            number: rangeipData.areaNumber,
-          };
-        }
+        unsubscribedAreasMap[rangeipData.areaId] = {
+          areaId: rangeipData.areaId,
+          name: rangeipData.areaName,
+          number: rangeipData.areaNumber,
+        };
       }
     }
 
