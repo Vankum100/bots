@@ -2,6 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@liaoliaots/nestjs-redis';
 import axios from 'axios';
+import {
+  OFFLINE_STATUS_ID,
+  ONLINE_STATUS_ID,
+  WARNING_STATUS_ID,
+} from '../constants/statuses';
 
 interface RangeipData {
   rangeipId: string;
@@ -13,7 +18,7 @@ interface RangeipData {
   chatIds?: number[];
 }
 
-interface AreaData {
+export interface AreaData {
   areaId: string;
   name: string;
   number: number;
@@ -24,9 +29,7 @@ export class InteractionService {
   private readonly AREA_PREFIX = 'area:';
   private readonly RANGEIP_PREFIX = 'rangeip:';
   private readonly logger = new Logger('Device Status Handler');
-  constructor(
-    @InjectRedis('bot') private readonly redisClient: Redis,
-  ) {}
+  constructor(@InjectRedis('bot') private readonly redisClient: Redis) {}
 
   async getAllRangeips(): Promise<any> {
     let response: any;
@@ -147,16 +150,6 @@ export class InteractionService {
     return 'OK';
   }
 
-  async isUserSubscribedToRangeip(
-    chatId: number,
-    rangeipId: string,
-  ): Promise<boolean> {
-    const currentRangeipData = await this.getRangeipData(rangeipId);
-    return currentRangeipData
-      ? currentRangeipData.chatIds.includes(chatId)
-      : false;
-  }
-
   async getUnsubscribedRangeips(
     chatId: number,
     areaId: string,
@@ -216,30 +209,6 @@ export class InteractionService {
     return currentRangeipData ? currentRangeipData.chatIds || [] : [];
   }
 
-  async getRangeipNamesByChatId(chatId: number): Promise<RangeipData[]> {
-    const subscribedRangeipKeys = await this.redisClient.keys(
-      `${this.RANGEIP_PREFIX}*`,
-    );
-    const subscribedRangeipDataList = await Promise.all(
-      subscribedRangeipKeys.map((key) => this.redisClient.get(key)),
-    );
-
-    const subscribedRangeips: RangeipData[] = [];
-
-    for (const rangeip of subscribedRangeipDataList) {
-      const rangeipData = JSON.parse(rangeip);
-
-      if (
-        rangeipData &&
-        rangeipData.chatIds &&
-        rangeipData.chatIds.includes(chatId)
-      ) {
-        subscribedRangeips.push(rangeipData);
-      }
-    }
-
-    return subscribedRangeips;
-  }
   async getRangeipDataByNumber(index: number): Promise<RangeipData | null> {
     const rangeipKeys = await this.redisClient.keys(`${this.RANGEIP_PREFIX}*`);
 
@@ -326,45 +295,24 @@ export class InteractionService {
     return 'OK';
   }
 
-  async getAreasByChatId(
-    chatId: number,
-    subscribed: boolean,
-  ): Promise<AreaData[]> {
-    const subscribedRangeipKeys = await this.redisClient.keys(
-      `${this.RANGEIP_PREFIX}*`,
-    );
-    const subscribedRangeipDataList = await Promise.all(
-      subscribedRangeipKeys.map((key) => this.redisClient.get(key)),
-    );
+  async subscribeUserToAllArea(chatId: number): Promise<string> {
+    const allAreas = await this.getAreas();
 
-    const subscribedAreasMap: { [areaId: string]: AreaData } = {};
-    const unSubscribedAreasMap: { [areaId: string]: AreaData } = {};
-
-    for (const rangeip of subscribedRangeipDataList) {
-      const rangeipData = JSON.parse(rangeip);
-
-      if (
-        rangeipData &&
-        rangeipData.chatIds &&
-        rangeipData.chatIds.includes(chatId)
-      ) {
-        subscribedAreasMap[rangeipData.areaId] = {
-          areaId: rangeipData.areaId,
-          name: rangeipData.areaName,
-          number: rangeipData.areaNumber,
-        };
-      } else {
-        unSubscribedAreasMap[rangeipData.areaId] = {
-          areaId: rangeipData.areaId,
-          name: rangeipData.areaName,
-          number: rangeipData.areaNumber,
-        };
-      }
+    for (const area of allAreas) {
+      await this.subscribeUserToArea(chatId, area.areaId);
     }
 
-    return subscribed
-      ? Object.values(subscribedAreasMap)
-      : Object.values(unSubscribedAreasMap);
+    return 'OK';
+  }
+
+  async unsubscribeUserFromAllArea(chatId: number): Promise<string> {
+    const allAreas = await this.getAreas();
+
+    for (const area of allAreas) {
+      await this.unsubscribeUserFromArea(chatId, area.areaId);
+    }
+
+    return 'OK';
   }
 
   async getSubscribedAreasByChatId(chatId: number): Promise<AreaData[]> {
@@ -410,31 +358,16 @@ export class InteractionService {
 
     for (const rangeip of subscribedRangeipDataList) {
       const rangeipData = JSON.parse(rangeip);
-
+      const rangeipsInArea = await this.getRangeipsByAreaId(rangeipData.areaId);
       if (
-        rangeipData &&
-        rangeipData.chatIds &&
-        !rangeipData.chatIds.includes(chatId)
+        !unsubscribedAreasMap[rangeipData.areaId] &&
+        rangeipsInArea.some((rangeip) => !rangeip.chatIds.includes(chatId))
       ) {
-        let areaIdHasChatId = false;
-        for (const otherRangeip of subscribedRangeipDataList) {
-          const otherRangeipData = JSON.parse(otherRangeip);
-          if (
-            otherRangeipData.areaId === rangeipData.areaId &&
-            otherRangeipData.chatIds &&
-            otherRangeipData.chatIds.includes(chatId)
-          ) {
-            areaIdHasChatId = true;
-            break;
-          }
-        }
-        if (!areaIdHasChatId) {
-          unsubscribedAreasMap[rangeipData.areaId] = {
-            areaId: rangeipData.areaId,
-            name: rangeipData.areaName,
-            number: rangeipData.areaNumber,
-          };
-        }
+        unsubscribedAreasMap[rangeipData.areaId] = {
+          areaId: rangeipData.areaId,
+          name: rangeipData.areaName,
+          number: rangeipData.areaNumber,
+        };
       }
     }
 
@@ -484,5 +417,246 @@ export class InteractionService {
     });
 
     return pipeline.exec();
+  }
+
+  async containerStats(areaId: string, rangeipId: string): Promise<string> {
+    const rangeipsInArea = await this.getRangeipsByAreaId(areaId);
+    const targetRangeip = rangeipsInArea.find(
+      (rangeip) => rangeip.rangeipId === rangeipId,
+    );
+    if (!targetRangeip) return 'Rangeip not found in the specified area.';
+
+    const relevantRangeips = rangeipsInArea.filter(
+      (rangeip) => rangeip.rangeipName === targetRangeip.rangeipName,
+    );
+
+    let onlineCount = 0;
+    let offlineCount = 0;
+    let warningCount = 0;
+    let totalConsumption = 0;
+    let totalHashRate = 0;
+    let totalUpTime = 0;
+
+    for (const rangeip of relevantRangeips) {
+      const rangeipData = await this.getCachedAreaStats(
+        areaId,
+        rangeip.rangeipId,
+      );
+
+      onlineCount += rangeipData.onlineCount;
+      offlineCount += rangeipData.offlineCount;
+      warningCount += rangeipData.warningCount;
+      totalConsumption += rangeipData.totalConsumption;
+      totalHashRate += rangeipData.totalHashRate;
+      totalUpTime += rangeipData.totalUpTime;
+    }
+
+    return (
+      `Статистика по ${targetRangeip.rangeipName}:\n` +
+      `Онлайн: ${onlineCount}\n` +
+      `Предупреждение: ${warningCount}\n` +
+      `Не в сети: ${offlineCount}\n` +
+      `Текущее потребление: ${totalConsumption}\n` +
+      `Текущий хэш-рейт: ${totalHashRate}\n` +
+      `Текущий UpTime: ${totalUpTime}\n`
+    );
+  }
+
+  async areaStats(areaNumber: number): Promise<string> {
+    const area = await this.getAreaByNumber(areaNumber);
+    if (!area) return 'Area not found.';
+
+    const {
+      onlineCount,
+      offlineCount,
+      warningCount,
+      totalConsumption,
+      totalHashRate,
+      totalUpTime,
+    }: any = await this.getCachedAreaStats(area.areaId);
+
+    return (
+      `Статистика по площадке ${area.name}:\n` +
+      `Онлайн: ${onlineCount}\n` +
+      `Предупреждение: ${warningCount}\n` +
+      `Не в сети: ${offlineCount}\n` +
+      `Текущее потребление: ${totalConsumption}\n` +
+      `Текущий хэш-рейт: ${totalHashRate}\n` +
+      `Текущий UpTime: ${totalUpTime}\n`
+    );
+  }
+
+  private async getCachedAreaStats(
+    areaId: string,
+    rangeipId: string | null = null,
+  ) {
+    const logUrl = process.env.MICROSERVICE_LOG_URL;
+    const minerUrl = process.env.MICROSERVICE_MINER_URL;
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+    const currentDate = new Date();
+    const startDate = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      currentDate.getDate(),
+      0,
+      0,
+      0,
+    );
+    const endDate = currentDate;
+
+    let hashRate: any,
+      energyConsumption: any,
+      uptime: any,
+      onlineCount: any,
+      offlineCount: any,
+      warningCount: any;
+
+    try {
+      const hashRateResponse: any = await axios.get(
+        `${logUrl}/log-cache-hashrate-day`,
+        {
+          params: {
+            where: JSON.stringify({
+              createdAt: `$Between(["${startDate.toISOString()}","${endDate.toISOString()}"])`,
+              areaId,
+              modelId: '',
+              statusId: '',
+              algorithmId: '',
+              rangeipId,
+              userId: '',
+            }),
+            order: JSON.stringify({ createdAt: 'DESC' }),
+            limit: 1,
+            select: JSON.stringify({ value: true }),
+            botToken,
+          },
+        },
+      );
+
+      hashRate = hashRateResponse.data.total;
+    } catch (error) {
+      console.error('Error fetching hash rate:', error);
+    }
+
+    try {
+      const energyResponse: any = await axios.get(
+        `${logUrl}/log-cache-energy-day`,
+        {
+          params: {
+            where: JSON.stringify({
+              createdAt: `$Between(["${startDate.toISOString()}","${endDate.toISOString()}"])`,
+              areaId,
+              modelId: '',
+              statusId: '',
+              algorithmId: '',
+              rangeipId,
+              userId: '',
+            }),
+            order: JSON.stringify({ createdAt: 'DESC' }),
+            limit: 1,
+            select: JSON.stringify({ value: true }),
+            botToken,
+          },
+        },
+      );
+
+      energyConsumption = energyResponse.data.total;
+    } catch (error) {
+      console.error('Error fetching energy consumption:', error);
+    }
+
+    try {
+      const uptimeResponse: any = await axios.get(
+        `${logUrl}/log-cache-uptime-day/avg`,
+        {
+          params: {
+            where: JSON.stringify({
+              createdAt: `$Between(["${startDate.toISOString()}","${endDate.toISOString()}"])`,
+              areaId,
+              modelId: '',
+              statusId: '',
+              algorithmId: '',
+              rangeipId,
+              userId: '',
+            }),
+            order: JSON.stringify({ createdAt: 'DESC' }),
+            limit: 1,
+            select: JSON.stringify({ value: true }),
+            botToken,
+          },
+        },
+      );
+      uptime = uptimeResponse.data.total;
+    } catch (error) {
+      console.error('Error fetching uptime:', error);
+    }
+
+    try {
+      const onlineResponse: any = await axios.get(`${minerUrl}/device/count`, {
+        params: {
+          where: JSON.stringify({
+            userId: null,
+            areaId,
+            algorithmId: null,
+            modelId: null,
+            statusId: ONLINE_STATUS_ID,
+            rangeipId,
+          }),
+          botToken,
+        },
+      });
+      onlineCount = onlineResponse.data.total;
+    } catch (error) {
+      console.error('Error fetching online count:', error);
+    }
+
+    try {
+      const warningResponse: any = await axios.get(`${minerUrl}/device/count`, {
+        params: {
+          where: JSON.stringify({
+            userId: null,
+            areaId,
+            algorithmId: null,
+            modelId: null,
+            statusId: WARNING_STATUS_ID,
+            rangeipId,
+          }),
+          botToken,
+        },
+      });
+      warningCount = warningResponse.data.total;
+    } catch (error) {
+      console.error('Error fetching warning count:', error);
+    }
+
+    try {
+      const offlineResponse: any = await axios.get(`${minerUrl}/device/count`, {
+        params: {
+          where: JSON.stringify({
+            userId: null,
+            areaId,
+            algorithmId: null,
+            modelId: null,
+            statusId: OFFLINE_STATUS_ID,
+            rangeipId,
+          }),
+          botToken,
+        },
+      });
+      offlineCount = offlineResponse.data.total;
+    } catch (error) {
+      console.error('Error fetching offline count:', error);
+    }
+
+    return {
+      areaId,
+      onlineCount,
+      offlineCount,
+      warningCount,
+      totalConsumption: energyConsumption,
+      totalHashRate: hashRate,
+      totalUpTime: uptime,
+    };
   }
 }
