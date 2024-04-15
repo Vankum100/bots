@@ -7,6 +7,7 @@ import {
   ONLINE_STATUS_ID,
   WARNING_STATUS_ID,
 } from '../constants/statuses';
+import { getEnergyUnit, getHashRate } from '../utils';
 
 interface RangeipData {
   rangeipId: string;
@@ -451,14 +452,16 @@ export class InteractionService {
       totalUpTime += rangeipData.totalUpTime;
     }
 
+    const consumption = getEnergyUnit(Number(totalConsumption));
+    const hashrate = getHashRate(Number(totalHashRate), 'GH');
     return (
       `Статистика по ${targetRangeip.rangeipName}:\n` +
-      `Онлайн: ${onlineCount}\n` +
-      `Предупреждение: ${warningCount}\n` +
-      `Не в сети: ${offlineCount}\n` +
-      `Текущее потребление: ${totalConsumption}\n` +
-      `Текущий хэш-рейт: ${totalHashRate}\n` +
-      `Текущий UpTime: ${totalUpTime}\n`
+      `Онлайн: ${onlineCount} шт\n` +
+      `Предупреждение: ${warningCount} шт\n` +
+      `Не в сети: ${offlineCount} шт\n` +
+      `Текущее потребление: ${consumption.value} ${consumption.unit}\n` +
+      `Текущий хэш-рейт: ${hashrate.value} ${hashrate.unit}\n` +
+      `Текущий UpTime: ${Number(totalUpTime).toFixed(2).toString()} %\n`
     );
   }
 
@@ -475,14 +478,16 @@ export class InteractionService {
       totalUpTime,
     }: any = await this.getCachedAreaStats(area.areaId);
 
+    const consumption = getEnergyUnit(Number(totalConsumption));
+    const hashrate = getHashRate(Number(totalHashRate), 'GH');
     return (
       `Статистика по площадке ${area.name}:\n` +
-      `Онлайн: ${onlineCount}\n` +
-      `Предупреждение: ${warningCount}\n` +
-      `Не в сети: ${offlineCount}\n` +
-      `Текущее потребление: ${totalConsumption}\n` +
-      `Текущий хэш-рейт: ${totalHashRate}\n` +
-      `Текущий UpTime: ${totalUpTime}\n`
+      `Онлайн: ${onlineCount} шт\n` +
+      `Предупреждение: ${warningCount} шт\n` +
+      `Не в сети: ${offlineCount} шт\n` +
+      `Текущее потребление: ${consumption.value} ${consumption.unit}\n` +
+      `Текущий хэш-рейт: ${hashrate.value} ${hashrate.unit}\n` +
+      `Текущий UpTime: ${Number(totalUpTime).toFixed(2).toString()} %\n`
     );
   }
 
@@ -534,7 +539,7 @@ export class InteractionService {
         },
       );
 
-      hashRate = hashRateResponse.data.total;
+      hashRate = hashRateResponse.data?.rows[0]?.value;
     } catch (error) {
       console.error('Error fetching hash rate:', error);
     }
@@ -561,7 +566,7 @@ export class InteractionService {
         },
       );
 
-      energyConsumption = energyResponse.data.total;
+      energyConsumption = energyResponse.data?.rows[0]?.value;
     } catch (error) {
       console.error('Error fetching energy consumption:', error);
     }
