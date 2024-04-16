@@ -12,6 +12,7 @@ interface MessageInfo {
   prevStatus: string;
   currentStatus: string;
   time: string;
+  reason?: string;
 }
 
 export class EventConsumer implements OnModuleDestroy, OnModuleInit {
@@ -59,6 +60,7 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
       prevStatus,
       currentStatus,
       time,
+      reason,
     } = messageInfo;
 
     if (await this.userService.isNotificationEnabled(chatId)) {
@@ -66,9 +68,16 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
       try {
         const escapedIpaddr = ipaddr.replace(/[.@:]/g, '\\$&');
         const escapedTime = time.replace(/[:-]/g, '\\$&');
-        const formattedMessage = `
+        let formattedMessage: string;
+        if (reason !== '' && currentStatus === 'Ошибка') {
+          formattedMessage = `
+        Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nПричина: *${reason}* \nДата: _${escapedTime}_
+      `;
+        } else {
+          formattedMessage = `
         Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nДата: _${escapedTime}_
       `;
+        }
 
         const finalUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
 
