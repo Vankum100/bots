@@ -69,7 +69,7 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
         const escapedIpaddr = ipaddr.replace(/[.@:]/g, '\\$&');
         const escapedTime = time.replace(/[:-]/g, '\\$&');
         let formattedMessage: string;
-        if (reason !== '' && currentStatus === 'Ошибка') {
+        if (currentStatus === 'Ошибка') {
           formattedMessage = `
         Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nПричина: *${reason}* \nДата: _${escapedTime}_
       `;
