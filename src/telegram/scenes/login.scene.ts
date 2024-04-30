@@ -61,6 +61,11 @@ export class LoginScene {
     return this.commandHandler.logoutCommand(ctx, this.userService);
   }
 
+  @Command(BotCommand.Select)
+  async selectStatusCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.selectStatusCommand(ctx, this.userService);
+  }
+
   @On('contact')
   async authorization(@Ctx() ctx: Context) {
     return this.onContactHandler(ctx);

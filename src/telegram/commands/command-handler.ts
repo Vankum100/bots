@@ -3,12 +3,18 @@ import { LOGIN_SCENE } from '../constants/scenes';
 import { START_COMMAND_ERROR } from '../constants/messages';
 import { UserService } from '../services/user.service';
 import { BotCommand } from '../enums/commandEnum';
+import { russianStatuses } from '../constants/statuses';
+import { Markup } from 'telegraf';
 
 export class CommandHandler {
   constructor() {}
   private async setPersistentMenu(ctx: Context) {
     await ctx.telegram.setMyCommands([
       { command: BotCommand.Restart, description: 'Перезапустить бота' },
+      {
+        command: BotCommand.Select,
+        description: 'Выбрать статусы для отслеживания',
+      },
       { command: BotCommand.Enable, description: 'Включить уведомления' },
       { command: BotCommand.Disable, description: 'Отключить уведомления' },
       { command: BotCommand.Logout, description: 'Выйти' },
@@ -33,6 +39,32 @@ export class CommandHandler {
     } else {
       await userService.updateNotificationStatus(userId, true);
       return 'Уведомления включены';
+    }
+  }
+
+  async selectStatusCommand(ctx: Context, userService: UserService) {
+    const allStatuses = Object.keys(russianStatuses);
+
+    const userId = ctx.from.id;
+    const user = await userService.findOne(userId);
+
+    if (!user.isLoggedIn) {
+      await ctx.scene.enter(LOGIN_SCENE, { isLoggedIn: user.isLoggedIn });
+    } else {
+      const activeStatuses = user.selectedStatuses || [];
+
+      const buttons = allStatuses.map((status, index) => {
+        const isChecked = activeStatuses.includes(status);
+        const activateFlag = !isChecked;
+        return [
+          Markup.button.callback(
+            `${isChecked ? '☑️' : '▫️'} ${status}`,
+            `SELECT-STATUS_${activateFlag}_${index}`,
+          ),
+        ];
+      });
+
+      await ctx.reply(`Выберите статусы :`, Markup.inlineKeyboard(buttons));
     }
   }
 

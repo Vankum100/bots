@@ -4,4 +4,5 @@ export enum BotCommand {
   Disable = 'disable',
   Logout = 'logout',
   Start = 'start',
+  Select = 'select',
 }

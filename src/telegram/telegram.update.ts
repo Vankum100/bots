@@ -1,4 +1,4 @@
-import { Ctx, On, Start, Update, Command } from 'nestjs-telegraf';
+import { Ctx, On, Start, Update, Command, Action } from 'nestjs-telegraf';
 import { Context } from './interfaces/context.interface';
 import { UserService } from './services/user.service';
 import { CommandHandler } from './commands/command-handler';
@@ -7,6 +7,7 @@ import { INTERACTION_SCENE } from './constants/scenes';
 import { BotCommand } from './enums/commandEnum';
 import { LoginScene } from './scenes/login.scene';
 import { InteractionScene } from './scenes/interaction.scene';
+import { russianStatuses } from './constants/statuses';
 
 @Update()
 export class TelegramUpdate {
@@ -47,6 +48,27 @@ export class TelegramUpdate {
     return this.commandHandler.logoutCommand(ctx, this.userService);
   }
 
+  @Command(BotCommand.Select)
+  async selectStatusCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.selectStatusCommand(ctx, this.userService);
+  }
+
+  @Action(/^SELECT-STATUS_(true|false)_(.+)$/)
+  async selectStatusAction(@Ctx() ctx: Context) {
+    // @ts-expect-error if there is no callback
+    const data = ctx.callbackQuery?.data as string;
+    const [, activateFlagStr, index] = data.split('_');
+    const activateFlag = activateFlagStr === 'true';
+    const userId = ctx.from.id;
+    const status = Object.keys(russianStatuses)[Number(index)];
+    await this.userService.updateSelectedStatus(userId, status, activateFlag);
+    await ctx.answerCbQuery(`Выбор Статуса: ${status} обновлен`);
+    const previousMessageId = ctx.callbackQuery.message.message_id;
+    await Promise.resolve(new Promise((resolve) => setTimeout(resolve, 200)));
+    await ctx.deleteMessage(previousMessageId);
+    await Promise.resolve(new Promise((resolve) => setTimeout(resolve, 100)));
+    await this.commandHandler.selectStatusCommand(ctx, this.userService);
+  }
   @On('callback_query')
   async callbackQuery(@Ctx() ctx: Context) {
     return this.interactionSelectionService.onCallbackQueryHandler(ctx);

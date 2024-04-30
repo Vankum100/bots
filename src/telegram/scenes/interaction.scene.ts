@@ -70,6 +70,11 @@ export class InteractionScene {
     return this.commandHandler.logoutCommand(ctx, this.userService);
   }
 
+  @Command(BotCommand.Select)
+  async selectStatusCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.selectStatusCommand(ctx, this.userService);
+  }
+
   @On('text')
   async onText(@Ctx() ctx: Context) {
     // @ts-expect-error if there is no text
@@ -87,6 +92,8 @@ export class InteractionScene {
         return this.commandHandler.disableCommand(ctx, this.userService);
       case BotCommand.Logout:
         return this.commandHandler.logoutCommand(ctx, this.userService);
+      case BotCommand.Select:
+        return this.commandHandler.selectStatusCommand(ctx, this.userService);
       default:
         return this.onTextHandler(ctx, text);
     }

@@ -8,6 +8,7 @@ export type User = {
   phone: string;
   notificationEnabled?: boolean;
   isLoggedIn?: boolean;
+  selectedStatuses?: string[];
 };
 @Injectable()
 export class UserService {
@@ -21,7 +22,21 @@ export class UserService {
     await this.redisClient.set(`user:${user.userId}`, JSON.stringify(user));
     return user;
   }
-
+  async updateSelectedStatus(
+    userId: number,
+    selectedStatus: string,
+    activateFlag: boolean,
+  ): Promise<void> {
+    const user = await this.findOne(userId);
+    if (user) {
+      user.selectedStatuses = activateFlag
+        ? (user.selectedStatuses || []).concat(selectedStatus)
+        : (user.selectedStatuses || []).filter(
+            (status) => status === selectedStatus,
+          );
+      await this.redisClient.set(`user:${userId}`, JSON.stringify(user));
+    }
+  }
   async updateNotificationStatus(
     userId: number,
     notificationEnabled: boolean,
