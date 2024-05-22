@@ -86,9 +86,9 @@ export class EventProducer implements OnModuleInit, OnModuleDestroy {
 
     await Promise.all(events.map(processEvent));
 
-    // await this.redisClient.del(
-    //   `device.status.${process.env.MICROSERVICE_BOT_NAME}.${3000}`,
-    // );
+    await this.redisClient.del(
+      `device.status.${process.env.MICROSERVICE_BOT_NAME}.${3000}`,
+    );
   }
 
   private populateEvents() {
