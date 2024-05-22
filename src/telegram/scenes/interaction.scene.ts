@@ -55,6 +55,16 @@ export class InteractionScene {
     await this.commandHandler.startCommand(ctx);
   }
 
+  @Command(BotCommand.Poolon)
+  async poolOnCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.poolOnCommand(ctx, this.userService);
+  }
+
+  @Command(BotCommand.Pooloff)
+  async poolOffCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.poolOffCommand(ctx, this.userService);
+  }
+
   @Command(BotCommand.Enable)
   async enableCommand(@Ctx() ctx: Context) {
     return this.commandHandler.enableCommand(ctx, this.userService);
@@ -86,6 +96,10 @@ export class InteractionScene {
         return this.commandHandler.startCommand(ctx);
       case BotCommand.Restart:
         return this.commandHandler.startCommand(ctx);
+      case BotCommand.Poolon:
+        return this.commandHandler.poolOnCommand(ctx, this.userService);
+      case BotCommand.Pooloff:
+        return this.commandHandler.poolOffCommand(ctx, this.userService);
       case BotCommand.Enable:
         return this.commandHandler.enableCommand(ctx, this.userService);
       case BotCommand.Disable:

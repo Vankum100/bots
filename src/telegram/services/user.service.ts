@@ -7,6 +7,7 @@ export type User = {
   userId: number;
   phone: string;
   notificationEnabled?: boolean;
+  poolTrackingEnabled?: boolean;
   isLoggedIn?: boolean;
   selectedStatuses?: string[];
 };
@@ -37,6 +38,24 @@ export class UserService {
       await this.redisClient.set(`user:${userId}`, JSON.stringify(user));
     }
   }
+  async updatePoolStatus(
+    userId: number,
+    poolTrackingEnabled: boolean,
+  ): Promise<void> {
+    const user = await this.findOne(userId);
+    if (user) {
+      user.poolTrackingEnabled = poolTrackingEnabled;
+      await this.redisClient.set(`user:${userId}`, JSON.stringify(user));
+    }
+  }
+
+  async isPoolTrackingEnabled(userId: number): Promise<boolean> {
+    const user = await this.findOne(userId);
+    return user && user.poolTrackingEnabled !== undefined
+      ? user.poolTrackingEnabled
+      : false;
+  }
+
   async updateNotificationStatus(
     userId: number,
     notificationEnabled: boolean,

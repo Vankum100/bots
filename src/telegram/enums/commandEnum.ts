@@ -5,4 +5,6 @@ export enum BotCommand {
   Logout = 'logout',
   Start = 'start',
   Select = 'select',
+  Poolon = 'poolon',
+  Pooloff = 'pooloff',
 }

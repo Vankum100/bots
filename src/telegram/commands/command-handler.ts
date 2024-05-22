@@ -15,6 +15,14 @@ export class CommandHandler {
         command: BotCommand.Select,
         description: 'Выбрать статусы для отслеживания',
       },
+      {
+        command: BotCommand.Poolon,
+        description: 'Включить отслеживание пулов',
+      },
+      {
+        command: BotCommand.Pooloff,
+        description: 'Отключить отслеживание пулов',
+      },
       { command: BotCommand.Enable, description: 'Включить уведомления' },
       { command: BotCommand.Disable, description: 'Отключить уведомления' },
       { command: BotCommand.Logout, description: 'Выйти' },
@@ -30,18 +38,6 @@ export class CommandHandler {
       return START_COMMAND_ERROR;
     }
   }
-
-  async enableCommand(ctx: Context, userService: UserService) {
-    const userId = ctx.from.id;
-    const isLoggedIn = await userService.isLoggedIn(userId);
-    if (!isLoggedIn) {
-      await ctx.scene.enter(LOGIN_SCENE, { isLoggedIn });
-    } else {
-      await userService.updateNotificationStatus(userId, true);
-      return 'Уведомления включены';
-    }
-  }
-
   async selectStatusCommand(ctx: Context, userService: UserService) {
     const allStatuses = Object.keys(russianStatuses);
 
@@ -68,6 +64,38 @@ export class CommandHandler {
     }
   }
 
+  async poolOnCommand(ctx: Context, userService: UserService) {
+    const userId = ctx.from.id;
+    const isLoggedIn = await userService.isLoggedIn(userId);
+    if (!isLoggedIn) {
+      await ctx.scene.enter(LOGIN_SCENE, { isLoggedIn });
+    } else {
+      await userService.updatePoolStatus(userId, true);
+      return 'Отслеживание пулов включено';
+    }
+  }
+
+  async poolOffCommand(ctx: Context, userService: UserService) {
+    const userId = ctx.from.id;
+    const isLoggedIn = await userService.isLoggedIn(userId);
+    if (!isLoggedIn) {
+      await ctx.scene.enter(LOGIN_SCENE, { isLoggedIn });
+    } else {
+      await userService.updatePoolStatus(userId, false);
+      return 'Отслеживание пулов выключено';
+    }
+  }
+
+  async enableCommand(ctx: Context, userService: UserService) {
+    const userId = ctx.from.id;
+    const isLoggedIn = await userService.isLoggedIn(userId);
+    if (!isLoggedIn) {
+      await ctx.scene.enter(LOGIN_SCENE, { isLoggedIn });
+    } else {
+      await userService.updateNotificationStatus(userId, true);
+      return 'Уведомления включены';
+    }
+  }
   async disableCommand(ctx: Context, userService: UserService) {
     const userId = ctx.from.id;
     const isLoggedIn = await userService.isLoggedIn(userId);

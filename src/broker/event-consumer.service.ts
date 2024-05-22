@@ -13,6 +13,10 @@ interface MessageInfo {
   currentStatus: string;
   time: string;
   reason?: string;
+  messageType?: string;
+  alert?: string;
+  sn?: string;
+  macaddr?: string;
 }
 
 export class EventConsumer implements OnModuleDestroy, OnModuleInit {
@@ -61,6 +65,10 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
       currentStatus,
       time,
       reason,
+      messageType,
+      alert,
+      sn,
+      macaddr,
     } = messageInfo;
 
     if (await this.userService.isNotificationEnabled(chatId)) {
@@ -69,16 +77,24 @@ export class EventConsumer implements OnModuleDestroy, OnModuleInit {
         const escapedIpaddr = ipaddr.replace(/[.@:]/g, '\\$&');
         const escapedTime = time.replace(/[:-]/g, '\\$&');
         let formattedMessage: string;
-        if (currentStatus === 'Ошибка' && reason !== '') {
+        if (
+          (messageType === 'alert' || alert.includes('Alert')) &&
+          (await this.userService.isPoolTrackingEnabled(chatId))
+        ) {
           formattedMessage = `
-        Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nПричина: *${reason}* \nДата: _${escapedTime}_
+          пулы устройства: [${escapedIpaddr}](${linkUrl}) \nПричина: *${alert}* \nMacAddress: *${macaddr}* \nSN: *${sn}* \nДата: _${escapedTime}_
       `;
         } else {
-          formattedMessage = `
-        Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nДата: _${escapedTime}_
+          if (currentStatus === 'Ошибка' && reason !== '') {
+            formattedMessage = `
+        Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nПричина: *${reason}* \nMacAddress: *${macaddr}* \nSN: *${sn}* \nДата: _${escapedTime}_
       `;
+          } else {
+            formattedMessage = `
+        Изменение статуса устройства: [${escapedIpaddr}](${linkUrl}) \nПредыдущий:  *${prevStatus}* \nТекущий: *${currentStatus}* \nMacAddress: *${macaddr}* \nSN: *${sn}* \nДата: _${escapedTime}_
+      `;
+          }
         }
-
         const finalUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
 
         const response = await axios.post(finalUrl, {

@@ -28,6 +28,10 @@ export class EventProducer implements OnModuleInit, OnModuleDestroy {
 
     const processEvent = async (event: string) => {
       const {
+        sn,
+        macdrr,
+        messageType = '',
+        alert = '',
         link,
         prevStatus,
         currentStatus,
@@ -36,7 +40,18 @@ export class EventProducer implements OnModuleInit, OnModuleDestroy {
         ipaddr,
         reason = '',
       } = JSON.parse(event);
-      const message = { ipaddr, link, prevStatus, currentStatus, time, reason };
+      const message = {
+        sn,
+        macdrr,
+        messageType,
+        alert,
+        ipaddr,
+        link,
+        prevStatus,
+        currentStatus,
+        time,
+        reason,
+      };
       const chatIds =
         await this.interactionService.getChatIdsByRangeipId(rangeipId);
       const streamData = chatIds.map((chatId) => ({
@@ -71,9 +86,9 @@ export class EventProducer implements OnModuleInit, OnModuleDestroy {
 
     await Promise.all(events.map(processEvent));
 
-    await this.redisClient.del(
-      `device.status.${process.env.MICROSERVICE_BOT_NAME}.${3000}`,
-    );
+    // await this.redisClient.del(
+    //   `device.status.${process.env.MICROSERVICE_BOT_NAME}.${3000}`,
+    // );
   }
 
   private populateEvents() {

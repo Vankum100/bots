@@ -46,6 +46,16 @@ export class LoginScene {
     await this.commandHandler.startCommand(ctx);
   }
 
+  @Command(BotCommand.Poolon)
+  async poolOnCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.poolOnCommand(ctx, this.userService);
+  }
+
+  @Command(BotCommand.Pooloff)
+  async poolOffCommand(@Ctx() ctx: Context) {
+    return this.commandHandler.poolOffCommand(ctx, this.userService);
+  }
+
   @Command(BotCommand.Enable)
   async enableCommand(@Ctx() ctx: Context) {
     return this.commandHandler.enableCommand(ctx, this.userService);
